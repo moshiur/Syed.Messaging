@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>Syed.Messaging.Aspire</AssemblyName>
+    <RootNamespace>Syed.Messaging.Aspire</RootNamespace>
+    <Description>.NET Aspire helpers for Syed.Messaging framework.</Description>
+    <PackageId>Syed.Messaging.Aspire</PackageId>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Syed.Messaging.Abstractions\Syed.Messaging.Abstractions.csproj" />
+    <ProjectReference Include="..\Syed.Messaging.Core\Syed.Messaging.Core.csproj" />
+    <ProjectReference Include="..\Syed.Messaging.RabbitMq\Syed.Messaging.RabbitMq.csproj" />
+  </ItemGroup>
+</Project>
