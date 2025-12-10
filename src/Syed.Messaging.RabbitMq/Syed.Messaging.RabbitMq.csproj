@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>Syed.Messaging.RabbitMq</AssemblyName>
+    <RootNamespace>Syed.Messaging.RabbitMq</RootNamespace>
+    <Description>RabbitMQ transport implementation for Syed.Messaging framework.</Description>
+    <PackageId>Syed.Messaging.RabbitMq</PackageId>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Syed.Messaging.Abstractions\Syed.Messaging.Abstractions.csproj" />
+    <ProjectReference Include="..\Syed.Messaging.Core\Syed.Messaging.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="RabbitMQ.Client" Version="6.8.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>Syed.Messaging.Abstractions</AssemblyName>
+    <RootNamespace>Syed.Messaging</RootNamespace>
+    <Description>Lightweight messaging abstractions for Syed.Messaging framework.</Description>
+    <PackageId>Syed.Messaging.Abstractions</PackageId>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+</Project>
