@@ -1,13 +1,16 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Syed.Messaging;
 
 public class GenericMessageConsumer<TMessage> : BackgroundService
 {
     private readonly IMessageTransport _transport;
-    private readonly IMessageHandler<TMessage> _handler;
+    private readonly IServiceScopeFactory _scopeFactory;
+
+    // Handler is resolved per scope
     private readonly ISerializer _serializer;
     private readonly ConsumerOptions<TMessage> _options;
     private readonly ILogger<GenericMessageConsumer<TMessage>> _logger;
@@ -15,13 +18,13 @@ public class GenericMessageConsumer<TMessage> : BackgroundService
 
     public GenericMessageConsumer(
         IMessageTransport transport,
-        IMessageHandler<TMessage> handler,
+        IServiceScopeFactory scopeFactory,
         ISerializer serializer,
         ConsumerOptions<TMessage> options,
         ILogger<GenericMessageConsumer<TMessage>> logger)
     {
         _transport = transport;
-        _handler = handler;
+        _scopeFactory = scopeFactory;
         _serializer = serializer;
         _options = options;
         _logger = logger;
@@ -68,7 +71,9 @@ public class GenericMessageConsumer<TMessage> : BackgroundService
 
             try
             {
-                await _handler.HandleAsync(message, ctx, ct);
+                using var scope = _scopeFactory.CreateScope();
+                var handler = scope.ServiceProvider.GetRequiredService<IMessageHandler<TMessage>>();
+                await handler.HandleAsync(message, ctx, ct);
                 return TransportAcknowledge.Ack;
             }
             catch (Exception ex)
@@ -76,7 +81,7 @@ public class GenericMessageConsumer<TMessage> : BackgroundService
                 _logger.LogError(ex,
                     "Error handling message {MessageType} in {HandlerType}. RetryCount={RetryCount}, CorrelationId={CorrelationId}",
                     envelope.MessageType,
-                    _handler.GetType().Name,
+                    typeof(IMessageHandler<TMessage>).Name,
                     ctx.RetryCount,
                     ctx.CorrelationId);
 

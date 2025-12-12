@@ -15,22 +15,30 @@ public sealed class RabbitMqTransport : IMessageTransport, IDisposable
 
     public RabbitMqTransport(RabbitMqOptions options, ILogger<RabbitMqTransport> logger)
     {
-        _options = options;
-        _logger = logger;
-
-        var factory = new ConnectionFactory
+        try
         {
-            Uri = new Uri(options.ConnectionString),
-            DispatchConsumersAsync = true
-        };
+            _options = options;
+            _logger = logger;
 
-        _connection = factory.CreateConnection();
-        _channel = _connection.CreateModel();
+            var factory = new ConnectionFactory
+            {
+                Uri = new Uri(options.ConnectionString),
+                DispatchConsumersAsync = true
+            };
 
-        var topology = new RabbitTopologyBuilder(_channel, _options);
-        topology.Build();
+            _connection = factory.CreateConnection();
+            _channel = _connection.CreateModel();
 
-        _channel.BasicQos(0, _options.PrefetchCount, false);
+            var topology = new RabbitTopologyBuilder(_channel, _options);
+            topology.Build();
+
+            _channel.BasicQos(0, _options.PrefetchCount, false);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "[Critical] Failed to initialize RabbitMqTransport. ConnectionStr: {ConnectionString}", options.ConnectionString);
+            throw;
+        }
     }
 
     public Task PublishAsync(IMessageEnvelope envelope, string destination, CancellationToken ct)
