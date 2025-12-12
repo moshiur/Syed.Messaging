@@ -57,10 +57,21 @@ public sealed class RabbitMqTransport : IMessageTransport, IDisposable
         var props = _channel.CreateBasicProperties();
         props.Persistent = true;
 
-        props.Headers = envelope.Headers.ToDictionary(kv => kv.Key, kv => (object)kv.Value);
+        var headers = envelope.Headers.ToDictionary(kv => kv.Key, kv => (object)kv.Value);
+        
+        // Ensure message-type and message-version are in headers
+        headers["message-type"] = envelope.MessageType;
+        if (!string.IsNullOrEmpty(envelope.MessageVersion))
+        {
+            headers["message-version"] = envelope.MessageVersion;
+        }
+        headers["timestamp"] = envelope.Timestamp.ToUnixTimeMilliseconds().ToString();
+        
+        props.Headers = headers;
         props.CorrelationId = envelope.CorrelationId;
         props.Type = envelope.MessageType;
         props.MessageId = envelope.MessageId ?? Guid.NewGuid().ToString();
+        props.Timestamp = new AmqpTimestamp(envelope.Timestamp.ToUnixTimeSeconds());
 
         _channel.BasicPublish(
             exchange: _options.MainExchangeName,
@@ -139,12 +150,32 @@ public sealed class RabbitMqTransport : IMessageTransport, IDisposable
             headers["correlation-id"] = correlationId;
         }
 
+        // Extract message version from headers
+        string? messageVersion = null;
+        if (headers.TryGetValue("message-version", out var versionHeader))
+        {
+            messageVersion = versionHeader;
+        }
+
+        // Extract timestamp from AMQP or header
+        DateTimeOffset timestamp = DateTimeOffset.UtcNow;
+        if (props.Timestamp.UnixTime > 0)
+        {
+            timestamp = DateTimeOffset.FromUnixTimeSeconds(props.Timestamp.UnixTime);
+        }
+        else if (headers.TryGetValue("timestamp", out var tsHeader) && long.TryParse(tsHeader, out var tsMs))
+        {
+            timestamp = DateTimeOffset.FromUnixTimeMilliseconds(tsMs);
+        }
+
         return new MessageEnvelope
         {
             MessageType = props.Type ?? string.Empty,
+            MessageVersion = messageVersion,
             MessageId = messageId,
             CorrelationId = correlationId,
-            CausationId = null,
+            CausationId = headers.TryGetValue("causation-id", out var causationId) ? causationId : null,
+            Timestamp = timestamp,
             Headers = headers,
             Body = ea.Body.ToArray()
         };
