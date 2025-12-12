@@ -1,0 +1,25 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>Syed.Messaging.Sagas.EfCore</AssemblyName>
+    <RootNamespace>Syed.Messaging.Sagas.EfCore</RootNamespace>
+    <Description>EF Core persistence for Syed.Messaging Saga state and timeouts.</Description>
+    <PackageId>Syed.Messaging.Sagas.EfCore</PackageId>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Syed.Messaging.Abstractions\Syed.Messaging.Abstractions.csproj" />
+    <ProjectReference Include="..\Syed.Messaging.Core\Syed.Messaging.Core.csproj" />
+    <ProjectReference Include="..\Syed.Messaging.Sagas\Syed.Messaging.Sagas.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.0" />
+  </ItemGroup>
+
+</Project>

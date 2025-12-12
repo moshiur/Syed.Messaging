@@ -7,8 +7,9 @@ namespace Syed.Messaging.Sagas;
 public sealed class SagaTimeoutRequest
 {
     public Guid Id { get; set; }
-    public string SagaType { get; set; } = default!;
-    public string TimeoutMessageType { get; set; } = default!;
+    public string SagaTypeKey { get; set; } = default!;
+    public string TimeoutTypeKey { get; set; } = default!;
+    public string? TimeoutTypeVersion { get; set; }
     public string CorrelationKey { get; set; } = default!;
     public byte[] Payload { get; set; } = Array.Empty<byte>();
     public DateTime DueAtUtc { get; set; }
@@ -19,7 +20,7 @@ public sealed class SagaTimeoutRequest
 public interface ISagaTimeoutStore
 {
     Task ScheduleAsync(SagaTimeoutRequest request, CancellationToken ct);
-    Task CancelAsync(Type sagaType, string correlationKey, Type timeoutMessageType, CancellationToken ct);
+    Task CancelAsync(string sagaTypeKey, string correlationKey, string timeoutTypeKey, string? timeoutTypeVersion, CancellationToken ct);
     Task<IReadOnlyList<SagaTimeoutRequest>> GetDueAsync(DateTime nowUtc, int batchSize, CancellationToken ct);
     Task MarkProcessedAsync(Guid id, CancellationToken ct);
 }
@@ -41,18 +42,16 @@ public sealed class InMemorySagaTimeoutStore : ISagaTimeoutStore
         return Task.CompletedTask;
     }
 
-    public Task CancelAsync(Type sagaType, string correlationKey, Type timeoutMessageType, CancellationToken ct)
+    public Task CancelAsync(string sagaTypeKey, string correlationKey, string timeoutTypeKey, string? timeoutTypeVersion, CancellationToken ct)
     {
-        var sagaTypeName = sagaType.AssemblyQualifiedName ?? sagaType.FullName;
-        var timeoutTypeName = timeoutMessageType.AssemblyQualifiedName ?? timeoutMessageType.FullName;
-
         lock (_lock)
         {
             foreach (var r in _requests)
             {
                 if (!r.Cancelled &&
-                    r.SagaType == sagaTypeName &&
-                    r.TimeoutMessageType == timeoutTypeName &&
+                    r.SagaTypeKey == sagaTypeKey &&
+                    r.TimeoutTypeKey == timeoutTypeKey &&
+                    r.TimeoutTypeVersion == timeoutTypeVersion &&
                     r.CorrelationKey == correlationKey)
                 {
                     r.Cancelled = true;
@@ -96,20 +95,39 @@ internal sealed class SagaTimeoutScheduler : ISagaTimeoutScheduler
 {
     private readonly ISagaTimeoutStore _store;
     private readonly ISerializer _serializer;
+    private readonly IMessageTypeRegistry _registry;
 
-    public SagaTimeoutScheduler(ISagaTimeoutStore store, ISerializer serializer)
+    public SagaTimeoutScheduler(ISagaTimeoutStore store, ISerializer serializer, IMessageTypeRegistry registry)
     {
         _store = store;
         _serializer = serializer;
+        _registry = registry;
     }
 
     public Task ScheduleAsync<TTimeout>(Type sagaType, string correlationKey, TimeSpan delay, TTimeout timeout, CancellationToken ct = default)
     {
+        // Get type key from registry, or use full name as fallback
+        string timeoutTypeKey;
+        string? timeoutTypeVersion = null;
+
+        if (_registry.TryGetTypeKey(typeof(TTimeout), out var key, out var version))
+        {
+            timeoutTypeKey = key!;
+            timeoutTypeVersion = version;
+        }
+        else
+        {
+            // Fallback: auto-register and use type name
+            _registry.Register<TTimeout>();
+            (timeoutTypeKey, timeoutTypeVersion) = _registry.GetTypeKey<TTimeout>();
+        }
+
         var req = new SagaTimeoutRequest
         {
             Id = Guid.NewGuid(),
-            SagaType = sagaType.AssemblyQualifiedName ?? sagaType.FullName ?? sagaType.Name,
-            TimeoutMessageType = typeof(TTimeout).AssemblyQualifiedName ?? typeof(TTimeout).FullName ?? typeof(TTimeout).Name,
+            SagaTypeKey = sagaType.FullName ?? sagaType.Name,
+            TimeoutTypeKey = timeoutTypeKey,
+            TimeoutTypeVersion = timeoutTypeVersion,
             CorrelationKey = correlationKey,
             Payload = _serializer.Serialize(timeout),
             DueAtUtc = DateTime.UtcNow + delay,
@@ -122,10 +140,24 @@ internal sealed class SagaTimeoutScheduler : ISagaTimeoutScheduler
 
     public Task CancelAsync<TTimeout>(Type sagaType, string correlationKey, CancellationToken ct = default)
     {
+        string timeoutTypeKey;
+        string? timeoutTypeVersion = null;
+
+        if (_registry.TryGetTypeKey(typeof(TTimeout), out var key, out var version))
+        {
+            timeoutTypeKey = key!;
+            timeoutTypeVersion = version;
+        }
+        else
+        {
+            timeoutTypeKey = typeof(TTimeout).FullName ?? typeof(TTimeout).Name;
+        }
+
         return _store.CancelAsync(
-            sagaType,
+            sagaType.FullName ?? sagaType.Name,
             correlationKey,
-            typeof(TTimeout),
+            timeoutTypeKey,
+            timeoutTypeVersion,
             ct);
     }
 }
@@ -137,6 +169,7 @@ public sealed class SagaTimeoutDispatcher : BackgroundService
 {
     private readonly ISagaTimeoutStore _store;
     private readonly ISerializer _serializer;
+    private readonly IMessageTypeRegistry _registry;
     private readonly ISagaRuntime _runtime;
     private readonly ILogger<SagaTimeoutDispatcher> _logger;
 
@@ -146,11 +179,13 @@ public sealed class SagaTimeoutDispatcher : BackgroundService
     public SagaTimeoutDispatcher(
         ISagaTimeoutStore store,
         ISerializer serializer,
+        IMessageTypeRegistry registry,
         ISagaRuntime runtime,
         ILogger<SagaTimeoutDispatcher> logger)
     {
         _store = store;
         _serializer = serializer;
+        _registry = registry;
         _runtime = runtime;
         _logger = logger;
     }
@@ -174,10 +209,13 @@ public sealed class SagaTimeoutDispatcher : BackgroundService
 
                     try
                     {
-                        var type = Type.GetType(t.TimeoutMessageType);
+                        var type = _registry.Resolve(t.TimeoutTypeKey, t.TimeoutTypeVersion);
                         if (type is null)
                         {
-                            _logger.LogWarning("Could not resolve timeout type {Type}", t.TimeoutMessageType);
+                            _logger.LogWarning(
+                                "Could not resolve timeout type key '{TypeKey}' (version: {Version}). " +
+                                "Ensure the type is registered with IMessageTypeRegistry.",
+                                t.TimeoutTypeKey, t.TimeoutTypeVersion ?? "null");
                             await _store.MarkProcessedAsync(t.Id, stoppingToken);
                             continue;
                         }
@@ -210,3 +248,4 @@ public sealed class SagaTimeoutDispatcher : BackgroundService
         }
     }
 }
+

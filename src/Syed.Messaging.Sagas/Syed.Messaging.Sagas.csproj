@@ -9,6 +9,9 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Syed.Messaging.Sagas.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\Syed.Messaging.Abstractions\Syed.Messaging.Abstractions.csproj" />
     <ProjectReference Include="..\Syed.Messaging.Core\Syed.Messaging.Core.csproj" />
   </ItemGroup>
