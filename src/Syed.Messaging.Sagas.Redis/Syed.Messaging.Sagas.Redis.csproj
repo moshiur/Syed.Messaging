@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>Syed.Messaging.Sagas.Redis</AssemblyName>
+    <RootNamespace>Syed.Messaging.Sagas.Redis</RootNamespace>
+    <Description>Redis-based distributed locking for Syed.Messaging Sagas.</Description>
+    <PackageId>Syed.Messaging.Sagas.Redis</PackageId>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Syed.Messaging.Sagas\Syed.Messaging.Sagas.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="StackExchange.Redis" Version="2.7.33" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.0" />
+  </ItemGroup>
+
+</Project>

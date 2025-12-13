@@ -48,7 +48,15 @@ real-world developer experience, operational resilience, or architectural clarit
 
 ---
 
-# 🧭 Phase 2 — Saga Engine & State Management 🚧 IN PROGRESS
+## Milestone C: Per-Saga-Instance Locking ✅ COMPLETE
+- [x] Design `ISagaLockProvider` interface
+- [x] Implement `InMemorySagaLockProvider`
+- [x] Implement `NoOpSagaLockProvider`
+- [x] Integrate locking into `SagaRuntime`
+- [x] Add 8 lock tests (65 total tests)
+- [ ] (Optional) Implement `RedisSagaLockProvider`
+
+# 🧭 Phase 2 — Saga Engine & State Management ✅ COMPLETE
 
 ### 🎯 Goals
 Establish a simple orchestration engine for long-running workflows.
@@ -60,10 +68,11 @@ Establish a simple orchestration engine for long-running workflows.
 - [x] Saga timeouts + scheduling
 - [x] In-memory stores for demos
 - [x] Saga runtime with handler discovery
-- [ ] EF Core saga state persistence (`EfSagaStateStore`)
-- [ ] EF Core timeout persistence (`EfSagaTimeoutStore`)
-- [ ] Saga completion marking
-- [ ] Distributed lock for concurrency (per-saga-instance)
+- [x] EF Core saga state persistence (`EfSagaStateStore`)
+- [x] EF Core timeout persistence (`EfSagaTimeoutStore`)
+- [x] Saga completion marking
+- [x] Per-saga-instance locking (`ISagaLockProvider`)
+- [ ] Distributed lock for concurrency (Redis - optional)
 - [ ] Saga replay support
 - [ ] End-to-end sample: OrderCreated → ReserveInventory → Payment → Shipping
 
