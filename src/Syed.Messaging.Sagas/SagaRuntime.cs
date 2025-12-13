@@ -13,12 +13,23 @@ internal sealed class SagaRuntime : ISagaRuntime
 {
     private readonly ISagaRegistry _registry;
     private readonly IServiceProvider _services;
+    private readonly ISagaLockProvider _lockProvider;
     private readonly ILogger<SagaRuntime> _logger;
 
-    public SagaRuntime(ISagaRegistry registry, IServiceProvider services, ILogger<SagaRuntime> logger)
+    /// <summary>
+    /// Lock timeout - how long to wait to acquire a lock before failing.
+    /// </summary>
+    public TimeSpan LockTimeout { get; set; } = TimeSpan.FromSeconds(30);
+
+    public SagaRuntime(
+        ISagaRegistry registry,
+        IServiceProvider services,
+        ISagaLockProvider lockProvider,
+        ILogger<SagaRuntime> logger)
     {
         _registry = registry;
         _services = services;
+        _lockProvider = lockProvider;
         _logger = logger;
     }
 
@@ -47,6 +58,21 @@ internal sealed class SagaRuntime : ISagaRuntime
             _logger.LogWarning("Correlation key for saga {SagaType} and message {MessageType} is empty.", definition.SagaType.Name, messageType.FullName);
             return;
         }
+
+        // Acquire lock for this saga instance
+        var sagaTypeName = definition.SagaType.FullName ?? definition.SagaType.Name;
+        await using var lockHandle = await _lockProvider.TryAcquireAsync(sagaTypeName, correlationKey, LockTimeout, ct);
+        
+        if (lockHandle is null)
+        {
+            _logger.LogWarning(
+                "Failed to acquire lock for saga {SagaType} with key {CorrelationKey} after {Timeout}. " +
+                "Message will be retried.",
+                definition.SagaType.Name, correlationKey, LockTimeout);
+            throw new SagaLockException(sagaTypeName, correlationKey);
+        }
+
+        _logger.LogDebug("Acquired lock for saga {SagaType} with key {CorrelationKey}", definition.SagaType.Name, correlationKey);
 
         // Resolve the state store
         var storeType = typeof(ISagaStateStore<>).MakeGenericType(definition.StateType);
@@ -96,6 +122,22 @@ internal sealed class SagaRuntime : ISagaRuntime
 
         // Save saga state
         await store.SaveAsync(state, correlationKey, ct);
+    }
+}
+
+/// <summary>
+/// Exception thrown when a saga lock cannot be acquired.
+/// </summary>
+public class SagaLockException : Exception
+{
+    public string SagaType { get; }
+    public string CorrelationKey { get; }
+
+    public SagaLockException(string sagaType, string correlationKey)
+        : base($"Failed to acquire lock for saga '{sagaType}' with correlation key '{correlationKey}'.")
+    {
+        SagaType = sagaType;
+        CorrelationKey = correlationKey;
     }
 }
 
