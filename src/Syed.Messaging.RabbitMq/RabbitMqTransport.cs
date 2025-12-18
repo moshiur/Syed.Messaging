@@ -19,7 +19,8 @@ public sealed class RabbitMqTransport : IMessageTransport, IDisposable
     public RabbitMqTransport(
         RabbitMqOptions options, 
         ILogger<RabbitMqTransport> logger,
-        ResiliencePipeline? resiliencePipeline = null)
+        ResiliencePipeline? resiliencePipeline = null,
+        IConnectionFactory? connectionFactory = null)
     {
         try
         {
@@ -27,7 +28,7 @@ public sealed class RabbitMqTransport : IMessageTransport, IDisposable
             _logger = logger;
             _resiliencePipeline = resiliencePipeline ?? ResiliencePipeline.Empty;
 
-            var factory = new ConnectionFactory
+            var factory = connectionFactory ?? new ConnectionFactory
             {
                 Uri = new Uri(options.ConnectionString),
                 DispatchConsumersAsync = true

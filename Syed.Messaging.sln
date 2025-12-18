@@ -43,6 +43,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Syed.Messaging.Sagas.Redis"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Syed.Messaging.OpenTelemetry", "src\Syed.Messaging.OpenTelemetry\Syed.Messaging.OpenTelemetry.csproj", "{FB30A34B-393A-479B-8B22-D102EB0D1198}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Syed.Messaging.RabbitMq.Tests", "tests\Syed.Messaging.RabbitMq.Tests\Syed.Messaging.RabbitMq.Tests.csproj", "{59EA03C2-C60C-4104-A82D-B37ECD1996DD}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -257,6 +259,18 @@ Global
 		{FB30A34B-393A-479B-8B22-D102EB0D1198}.Release|x64.Build.0 = Release|Any CPU
 		{FB30A34B-393A-479B-8B22-D102EB0D1198}.Release|x86.ActiveCfg = Release|Any CPU
 		{FB30A34B-393A-479B-8B22-D102EB0D1198}.Release|x86.Build.0 = Release|Any CPU
+		{59EA03C2-C60C-4104-A82D-B37ECD1996DD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{59EA03C2-C60C-4104-A82D-B37ECD1996DD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{59EA03C2-C60C-4104-A82D-B37ECD1996DD}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{59EA03C2-C60C-4104-A82D-B37ECD1996DD}.Debug|x64.Build.0 = Debug|Any CPU
+		{59EA03C2-C60C-4104-A82D-B37ECD1996DD}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{59EA03C2-C60C-4104-A82D-B37ECD1996DD}.Debug|x86.Build.0 = Debug|Any CPU
+		{59EA03C2-C60C-4104-A82D-B37ECD1996DD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{59EA03C2-C60C-4104-A82D-B37ECD1996DD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{59EA03C2-C60C-4104-A82D-B37ECD1996DD}.Release|x64.ActiveCfg = Release|Any CPU
+		{59EA03C2-C60C-4104-A82D-B37ECD1996DD}.Release|x64.Build.0 = Release|Any CPU
+		{59EA03C2-C60C-4104-A82D-B37ECD1996DD}.Release|x86.ActiveCfg = Release|Any CPU
+		{59EA03C2-C60C-4104-A82D-B37ECD1996DD}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -279,5 +293,6 @@ Global
 		{55DCE943-D816-4C87-ABCA-C76BBCF157D4} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{43B3E7C2-38ED-49FA-8621-18EB90DA57BD} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{FB30A34B-393A-479B-8B22-D102EB0D1198} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{59EA03C2-C60C-4104-A82D-B37ECD1996DD} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal
