@@ -32,4 +32,15 @@
 - [x] Create future roadmap with prioritized enhancements
 - [x] Write architecture decision records (ADRs)
 
+# Phase 3: Reliability & Resilience (Roadmap v1.1)
+
+## Milestone F: Transport Hardening (Current) ✅ COMPLETE
+- [x] Implement RabbitMQ Publisher Confirms
+- [/] Improve connection recovery logic (Built-in to client)
+- [ ] Add Dead Letter Queue (DLQ) management utilities
+
+## Milestone G: Resilience Patterns ✅ COMPLETE
+- [x] Integrate Polly for message handler retries
+- [ ] Implement Idempotent Consumer (Inbox) pattern
+
 ## Test Summary: 65 Tests Passing
