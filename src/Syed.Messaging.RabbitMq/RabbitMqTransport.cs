@@ -29,6 +29,9 @@ public sealed class RabbitMqTransport : IMessageTransport, IDisposable
             _connection = factory.CreateConnection();
             _channel = _connection.CreateModel();
 
+            // Enable Publisher Confirms
+            _channel.ConfirmSelect();
+
             var topology = new RabbitTopologyBuilder(_channel, _options);
             topology.Build();
 
@@ -78,6 +81,20 @@ public sealed class RabbitMqTransport : IMessageTransport, IDisposable
             routingKey: destination,
             basicProperties: props,
             body: envelope.Body);
+
+        // Wait for broker confirmation
+        // If the broker does not ack within the timeout (default 5s here effectively), throw exception
+        // This ensures the Outbox processor will see this as a failure and retry later.
+        try
+        {
+            _channel.WaitForConfirmsOrDie(TimeSpan.FromSeconds(5));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to publish message {MessageId} to {Destination}. NACK or Timeout received.", envelope.MessageId, destination);
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            throw;
+        }
 
         return Task.CompletedTask;
     }
