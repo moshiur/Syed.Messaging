@@ -17,6 +17,7 @@
     <ProjectReference Include="..\..\src\Syed.Messaging.RabbitMq\Syed.Messaging.RabbitMq.csproj" />
     <ProjectReference Include="..\..\src\Syed.Messaging.Sagas\Syed.Messaging.Sagas.csproj" />
     <ProjectReference Include="..\..\src\Syed.Messaging.Sagas.EfCore\Syed.Messaging.Sagas.EfCore.csproj" />
+    <ProjectReference Include="..\..\src\Syed.Messaging.Inbox.EfCore\Syed.Messaging.Inbox.EfCore.csproj" />
   </ItemGroup>
 
 </Project>

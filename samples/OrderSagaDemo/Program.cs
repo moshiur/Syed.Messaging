@@ -8,6 +8,8 @@ using Syed.Messaging.Sagas;
 using Syed.Messaging.Sagas.EfCore;
 using Syed.Messaging.Core;
 
+using Syed.Messaging.Inbox.EfCore;
+
 var builder = Host.CreateApplicationBuilder(args);
 
 // Add SQLite DbContext for saga persistence
@@ -62,6 +64,7 @@ builder.Services
 // Register EF Core saga stores
 builder.Services.AddEfSagaStateStore<SagaDbContext, OrderSagaState>();
 builder.Services.AddEfSagaTimeoutStore<SagaDbContext>();
+builder.Services.AddEfInboxStore<SagaDbContext>();
 
 var app = builder.Build();
 
