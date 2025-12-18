@@ -4,6 +4,8 @@ using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using Syed.Messaging;
 
+using Polly;
+
 namespace Syed.Messaging.RabbitMq;
 
 public sealed class RabbitMqTransport : IMessageTransport, IDisposable
@@ -12,13 +14,18 @@ public sealed class RabbitMqTransport : IMessageTransport, IDisposable
     private readonly ILogger<RabbitMqTransport> _logger;
     private readonly IConnection _connection;
     private readonly IModel _channel;
+    private readonly ResiliencePipeline _resiliencePipeline;
 
-    public RabbitMqTransport(RabbitMqOptions options, ILogger<RabbitMqTransport> logger)
+    public RabbitMqTransport(
+        RabbitMqOptions options, 
+        ILogger<RabbitMqTransport> logger,
+        ResiliencePipeline? resiliencePipeline = null)
     {
         try
         {
             _options = options;
             _logger = logger;
+            _resiliencePipeline = resiliencePipeline ?? ResiliencePipeline.Empty;
 
             var factory = new ConnectionFactory
             {
@@ -83,8 +90,6 @@ public sealed class RabbitMqTransport : IMessageTransport, IDisposable
             body: envelope.Body);
 
         // Wait for broker confirmation
-        // If the broker does not ack within the timeout (default 5s here effectively), throw exception
-        // This ensures the Outbox processor will see this as a failure and retry later.
         try
         {
             _channel.WaitForConfirmsOrDie(TimeSpan.FromSeconds(5));
@@ -117,11 +122,15 @@ public sealed class RabbitMqTransport : IMessageTransport, IDisposable
 
             try
             {
-                ackResult = await handler(envelope, ct);
+                // Execute handler within the resilience pipeline (e.g., retries)
+                ackResult = await _resiliencePipeline.ExecuteAsync(async cancellationToken => 
+                {
+                    return await handler(envelope, cancellationToken);
+                }, ct);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Unhandled error in message handler; will retry.");
+                _logger.LogError(ex, "Unhandled error in message handler (after retries); will NACK/Retry via Broker.");
                 ackResult = TransportAcknowledge.Retry;
             }
 

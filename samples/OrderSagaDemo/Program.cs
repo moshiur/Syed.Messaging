@@ -6,12 +6,16 @@ using Syed.Messaging;
 using Syed.Messaging.RabbitMq;
 using Syed.Messaging.Sagas;
 using Syed.Messaging.Sagas.EfCore;
+using Syed.Messaging.Core;
 
 var builder = Host.CreateApplicationBuilder(args);
 
 // Add SQLite DbContext for saga persistence
 builder.Services.AddDbContext<SagaDbContext>(options =>
     options.UseSqlite("Data Source=sagas.db"));
+
+// Add resilience pipeline (Polly)
+builder.Services.AddMessageResilience();
 
 builder.Services
     .AddMessaging(m =>
