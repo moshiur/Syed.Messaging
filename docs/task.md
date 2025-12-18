@@ -39,6 +39,10 @@
 - [/] Improve connection recovery logic (Built-in to client)
 - [ ] Add Dead Letter Queue (DLQ) management utilities
 
+## Milestone H: Unit Tests ✅ COMPLETE
+- [x] RabbitMQ Publisher Confirms & Resilience Tests
+- [x] Full Solution Test Run (68/68 passed)
+
 ## Milestone G: Resilience Patterns ✅ COMPLETE
 - [x] Integrate Polly for message handler retries
 - [ ] Implement Idempotent Consumer (Inbox) pattern
