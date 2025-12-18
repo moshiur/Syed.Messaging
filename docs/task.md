@@ -45,6 +45,12 @@
 
 ## Milestone G: Resilience Patterns ✅ COMPLETE
 - [x] Integrate Polly for message handler retries
-- [ ] Implement Idempotent Consumer (Inbox) pattern
+- [x] Implement Idempotent Consumer (Inbox) pattern
+
+## Milestone I: Inbox Pattern ✅ COMPLETE
+- [x] IInboxStore interface
+- [x] EfInboxStore implementation
+- [x] GenericMessageConsumer integration (De-duplication)
+- [x] Unit Tests & Demo Integration
 
 ## Test Summary: 65 Tests Passing
