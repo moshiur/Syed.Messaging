@@ -26,6 +26,10 @@ real-world developer experience, operational resilience, or architectural clarit
 
 | RabbitMQ Transport          | ✔ Stable     | Production-ready topology, retry, DLQ |
 
+| RPC (Request/Reply)         | ✔ Implemented| RequestAsync on IMessageBus + RpcMessageConsumer |
+
+| SignalR Bridge              | ✔ Implemented| Event-driven bridge to SignalR hubs |
+
 | Kafka Transport             | ⚠ Minimal    | Needs partitions, tuning, advanced retry |
 
 | Azure Service Bus           | ⚠ Minimal    | Needs scheduling/backoff + full config |
@@ -81,6 +85,14 @@ real-world developer experience, operational resilience, or architectural clarit
 \- \[ ] Add metrics counters (messages handled, retries, DLQ)
 
 \- \[ ] RabbitMQ/Kafka/ASB sample apps
+
+\- \[ ] **Inbox Pattern (Idempotent Consumers)** — deduplicate messages using IInboxStore
+
+\- \[ ] **Syed.Messaging.OpenTelemetry** — dedicated instrumentation package with Activity spans
+
+\- \[ ] **Kafka Transport Improvements** — partition-aware consumers, consumer groups, advanced retry
+
+\- \[ ] **Azure Service Bus Improvements** — scheduling, sessions, prefetch tuning
 
 
 
