@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using Syed.Messaging;
+using System.Collections.Concurrent;
 
 namespace Syed.Messaging.RabbitMq;
 
@@ -12,6 +13,8 @@ public sealed class RabbitMqTransport : IMessageTransport, IDisposable
     private readonly ILogger<RabbitMqTransport> _logger;
     private readonly IConnection _connection;
     private readonly IModel _channel;
+    
+    private readonly ConcurrentDictionary<string, TaskCompletionSource<IMessageEnvelope>> _pendingRequests = new();
 
     public RabbitMqTransport(RabbitMqOptions options, ILogger<RabbitMqTransport> logger)
     {
@@ -28,6 +31,24 @@ public sealed class RabbitMqTransport : IMessageTransport, IDisposable
 
             _connection = factory.CreateConnection();
             _channel = _connection.CreateModel();
+
+            // Setup Direct Reply-to Consumer
+            var replyConsumer = new AsyncEventingBasicConsumer(_channel);
+            replyConsumer.Received += (_, ea) =>
+            {
+                var correlationId = ea.BasicProperties.CorrelationId;
+                if (!string.IsNullOrEmpty(correlationId) && _pendingRequests.TryRemove(correlationId, out var tcs))
+                {
+                    var envelope = ToEnvelope(ea);
+                    tcs.TrySetResult(envelope);
+                }
+                return Task.CompletedTask;
+            };
+
+            _channel.BasicConsume(
+                queue: "amq.rabbitmq.reply-to",
+                autoAck: true,
+                consumer: replyConsumer);
 
             var topology = new RabbitTopologyBuilder(_channel, _options);
             topology.Build();
@@ -61,6 +82,11 @@ public sealed class RabbitMqTransport : IMessageTransport, IDisposable
         props.CorrelationId = envelope.CorrelationId;
         props.Type = envelope.MessageType;
         props.MessageId = envelope.MessageId ?? Guid.NewGuid().ToString();
+        
+        if (!string.IsNullOrEmpty(envelope.ReplyTo))
+        {
+            props.ReplyTo = envelope.ReplyTo;
+        }
 
         _channel.BasicPublish(
             exchange: _options.MainExchangeName,
@@ -73,6 +99,68 @@ public sealed class RabbitMqTransport : IMessageTransport, IDisposable
 
     public Task SendAsync(IMessageEnvelope envelope, string destination, CancellationToken ct)
         => PublishAsync(envelope, destination, ct);
+
+    public async Task<IMessageEnvelope> RequestAsync(IMessageEnvelope envelope, string destination, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(envelope.CorrelationId))
+        {
+            throw new ArgumentException("CorrelationId is required for RequestAsync", nameof(envelope));
+        }
+
+        // Use Direct Reply-to
+        // Note: The ReplyTo property on the envelope object passed in is ignored/overwritten because
+        // we must use the specific address for this transport's reply mechanism.
+        // Actually, we should set it on the envelope that goes to PublishAsync?
+        // But PublishAsync takes the envelope property.
+        // Let's modify the envelope passing through.
+        // Since IMessageEnvelope is immutable-ish (properties are init), we might need to cast or rely on properties map.
+        // But we added ReplyTo to the interface.
+        
+        // However, we can't mutate the input envelope easily.
+        // We'll pass the ReplyTo via `PublishAsync` logic modification above.
+        // Wait, I updated PublishAsync to read envelope.ReplyTo.
+        // But I need to set it to "amq.rabbitmq.reply-to".
+        
+        // We need to create a new envelope or modify property logic?
+        // MessageEnvelope is a class with init properties.
+        var requestEnvelope = new MessageEnvelope
+        {
+            MessageType = envelope.MessageType,
+            MessageId = envelope.MessageId,
+            CorrelationId = envelope.CorrelationId,
+            CausationId = envelope.CausationId,
+            Headers = envelope.Headers,
+            Body = envelope.Body,
+            ReplyTo = "amq.rabbitmq.reply-to" 
+        };
+
+        var tcs = new TaskCompletionSource<IMessageEnvelope>(TaskCreationOptions.RunContinuationsAsynchronously);
+        
+        // Register cancellation
+        using var reg = ct.Register(() => 
+        {
+            if (_pendingRequests.TryRemove(envelope.CorrelationId, out var removedTcs))
+            {
+                removedTcs.TrySetCanceled();
+            }
+        });
+
+        if (!_pendingRequests.TryAdd(envelope.CorrelationId, tcs))
+        {
+             throw new InvalidOperationException($"Duplicate request with correlation ID {envelope.CorrelationId}");
+        }
+
+        try
+        {
+            await PublishAsync(requestEnvelope, destination, ct);
+            return await tcs.Task;
+        }
+        catch
+        {
+            _pendingRequests.TryRemove(envelope.CorrelationId, out _);
+            throw;
+        }
+    }
 
     public Task SubscribeAsync(
         string subscriptionName,

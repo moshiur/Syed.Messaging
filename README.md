@@ -12,6 +12,8 @@ It gives you:
 
 - Transport-agnostic **abstractions**
 - **RabbitMQ**, **Kafka**, and **Azure Service Bus** transports
+- **RPC (Request/Reply)** pattern for synchronous-style messaging
+- **SignalR Bridge** for pushing events to WebSocket clients
 - Retry, delayed retry (TTL / retry topics / scheduled messages) and **DLQ**
 - Simple `IMessageHandler<T>` consumer model
 - **EF Core Outbox** implementation (with type metadata)
@@ -34,8 +36,10 @@ It gives you:
   / Syed.Messaging.RabbitMq
   / Syed.Messaging.Kafka
   / Syed.Messaging.AzureServiceBus
+  / Syed.Messaging.SignalR          # NEW: SignalR bridge
   / Syed.Messaging.Outbox.EfCore
   / Syed.Messaging.Aspire
+  / Syed.BuildingBlocks             # Shared DDD primitives
 
 / samples
   / OrderWorker        # RabbitMQ-based worker sample
@@ -65,12 +69,46 @@ public interface IMessageTransport
 {
     Task PublishAsync(IMessageEnvelope envelope, string destination, CancellationToken ct);
     Task SendAsync(IMessageEnvelope envelope, string destination, CancellationToken ct);
+    Task<IMessageEnvelope> RequestAsync(IMessageEnvelope envelope, string destination, CancellationToken ct);
     Task SubscribeAsync(
         string subscriptionName,
         string destination,
         Func<IMessageEnvelope, CancellationToken, Task<TransportAcknowledge>> handler,
         CancellationToken ct);
 }
+```
+
+### RPC (Request/Reply) Pattern
+
+```csharp
+public interface IRpcHandler<TRequest, TResponse>
+{
+    Task<TResponse> HandleAsync(TRequest request, MessageContext context, CancellationToken ct);
+}
+
+// Usage in service:
+var response = await messageBus.RequestAsync<ValidateUserRequest, ValidateUserResponse>(
+    "identity.validate-user", 
+    new ValidateUserRequest(userId), 
+    ct);
+```
+
+### SignalR Bridge
+
+```csharp
+// Register a SignalR bridge that forwards events to WebSocket clients:
+builder.Services.AddMessaging(m =>
+{
+    m.AddSignalRBridge<MessageCreatedEvent, MessageHub>(
+        methodName: "ReceiveMessage",
+        groupSelector: e => e.RecipientId.ToString(),
+        payloadSelector: e => new { e.SenderId, e.Content },
+        configure: c =>
+        {
+            c.Destination = "messages.created";
+            c.SubscriptionName = "signalr-bridge";
+        });
+});
 ```
 
 ### Consumers (in `Syed.Messaging.Core`)

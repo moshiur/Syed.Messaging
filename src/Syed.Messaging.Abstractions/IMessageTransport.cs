@@ -4,6 +4,7 @@ public interface IMessageTransport
 {
     Task PublishAsync(IMessageEnvelope envelope, string destination, CancellationToken ct);
     Task SendAsync(IMessageEnvelope envelope, string destination, CancellationToken ct);
+    Task<IMessageEnvelope> RequestAsync(IMessageEnvelope envelope, string destination, CancellationToken ct);
 
     Task SubscribeAsync(
         string subscriptionName,

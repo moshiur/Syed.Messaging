@@ -41,6 +41,11 @@ public sealed class KafkaTransport : IMessageTransport, IDisposable
     public Task SendAsync(IMessageEnvelope envelope, string destination, CancellationToken ct)
         => PublishAsync(envelope, destination, ct);
 
+    public Task<IMessageEnvelope> RequestAsync(IMessageEnvelope envelope, string destination, CancellationToken ct)
+    {
+        throw new NotSupportedException("Request/Reply is not yet implemented for Kafka.");
+    }
+
     public async Task SubscribeAsync(
         string subscriptionName,
         string destination,
