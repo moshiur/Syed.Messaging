@@ -72,8 +72,49 @@ public class GenericMessageConsumer<TMessage> : BackgroundService
             try
             {
                 using var scope = _scopeFactory.CreateScope();
+                
+                // --- INBOX LOGIC BEGIN ---
+                // We resolve the inbox store from the scope. If available, we check if processed.
+                // Ideally this participates in the same unit of work / transaction as the handler.
+                var inboxStore = scope.ServiceProvider.GetService<IInboxStore>();
+                if (inboxStore != null)
+                {
+                    // If message ID is missing, we can't dedup reliably, but let's assume it exists or fallback.
+                    var msgId = envelope.MessageId; 
+                    if (!string.IsNullOrEmpty(msgId) && await inboxStore.HasBeenProcessedAsync(msgId, ct))
+                    {
+                        _logger.LogInformation("Message {MessageId} ({MessageType}) already processed. Skipping.", msgId, envelope.MessageType);
+                        return TransportAcknowledge.Ack;
+                    }
+                }
+                // --- INBOX LOGIC END ---
+
                 var handler = scope.ServiceProvider.GetRequiredService<IMessageHandler<TMessage>>();
                 await handler.HandleAsync(message, ctx, ct);
+
+                // --- INBOX MARK PROCESSED ---
+                if (inboxStore != null && !string.IsNullOrEmpty(envelope.MessageId))
+                {
+                    // This call should ideally be part of the handler's transaction commit if possible.
+                    // If running against EF Core with same DbContext, it will attach the entity.
+                    // However, if the handler already called SaveChanges(), we might need another one here.
+                    // EfInboxStore executes SaveChangesAsync() internally in our implementation.
+                    try
+                    {
+                        await inboxStore.MarkProcessedAsync(envelope.MessageId, expiration: null, ct: ct);
+                    }
+                    catch (Exception ex)
+                    {
+                         // If marking fails, it might be a race condition (processed by another thread?) or DB error.
+                         // If DB error, we might want to fail the whole thing to retry.
+                         // But if handler succeeded and this failed, we risk re-processing.
+                         // Standard robust pattern: All in one transaction.
+                         // For now, allow retry.
+                         _logger.LogWarning(ex, "Failed to mark message {MessageId} as processed in Inbox.", envelope.MessageId);
+                         throw; 
+                    }
+                }
+
                 return TransportAcknowledge.Ack;
             }
             catch (Exception ex)

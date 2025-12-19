@@ -1,10 +1,23 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using OrderSagaDemo;
 using Syed.Messaging;
 using Syed.Messaging.RabbitMq;
 using Syed.Messaging.Sagas;
+using Syed.Messaging.Sagas.EfCore;
+using Syed.Messaging.Core;
+
+using Syed.Messaging.Inbox.EfCore;
 
 var builder = Host.CreateApplicationBuilder(args);
+
+// Add SQLite DbContext for saga persistence
+builder.Services.AddDbContext<SagaDbContext>(options =>
+    options.UseSqlite("Data Source=sagas.db"));
+
+// Add resilience pipeline (Polly)
+builder.Services.AddMessageResilience();
 
 builder.Services
     .AddMessaging(m =>
@@ -48,14 +61,23 @@ builder.Services
         });
     });
 
+// Register EF Core saga stores
+builder.Services.AddEfSagaStateStore<SagaDbContext, OrderSagaState>();
+builder.Services.AddEfSagaTimeoutStore<SagaDbContext>();
+builder.Services.AddEfInboxStore<SagaDbContext>();
+
 var app = builder.Build();
 
-// On startup: publish a single OrderCreated to kick off the saga
+// Ensure database is created
 using (var scope = app.Services.CreateScope())
 {
+    var db = scope.ServiceProvider.GetRequiredService<SagaDbContext>();
+    await db.Database.EnsureCreatedAsync();
+    
     var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("Bootstrap");
+    logger.LogInformation("✅ Saga database initialized (SQLite: sagas.db)");
+    
     var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
-
     var orderId = Guid.NewGuid();
     logger.LogInformation("Publishing OrderCreated for OrderId={OrderId}", orderId);
 
@@ -63,3 +85,4 @@ using (var scope = app.Services.CreateScope())
 }
 
 await app.RunAsync();
+

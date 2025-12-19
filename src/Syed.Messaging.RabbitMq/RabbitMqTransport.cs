@@ -3,7 +3,8 @@ using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using Syed.Messaging;
-using System.Collections.Concurrent;
+
+using Polly;
 
 namespace Syed.Messaging.RabbitMq;
 
@@ -13,17 +14,21 @@ public sealed class RabbitMqTransport : IMessageTransport, IDisposable
     private readonly ILogger<RabbitMqTransport> _logger;
     private readonly IConnection _connection;
     private readonly IModel _channel;
-    
-    private readonly ConcurrentDictionary<string, TaskCompletionSource<IMessageEnvelope>> _pendingRequests = new();
+    private readonly ResiliencePipeline _resiliencePipeline;
 
-    public RabbitMqTransport(RabbitMqOptions options, ILogger<RabbitMqTransport> logger)
+    public RabbitMqTransport(
+        RabbitMqOptions options, 
+        ILogger<RabbitMqTransport> logger,
+        ResiliencePipeline? resiliencePipeline = null,
+        IConnectionFactory? connectionFactory = null)
     {
         try
         {
             _options = options;
             _logger = logger;
+            _resiliencePipeline = resiliencePipeline ?? ResiliencePipeline.Empty;
 
-            var factory = new ConnectionFactory
+            var factory = connectionFactory ?? new ConnectionFactory
             {
                 Uri = new Uri(options.ConnectionString),
                 DispatchConsumersAsync = true
@@ -32,23 +37,8 @@ public sealed class RabbitMqTransport : IMessageTransport, IDisposable
             _connection = factory.CreateConnection();
             _channel = _connection.CreateModel();
 
-            // Setup Direct Reply-to Consumer
-            var replyConsumer = new AsyncEventingBasicConsumer(_channel);
-            replyConsumer.Received += (_, ea) =>
-            {
-                var correlationId = ea.BasicProperties.CorrelationId;
-                if (!string.IsNullOrEmpty(correlationId) && _pendingRequests.TryRemove(correlationId, out var tcs))
-                {
-                    var envelope = ToEnvelope(ea);
-                    tcs.TrySetResult(envelope);
-                }
-                return Task.CompletedTask;
-            };
-
-            _channel.BasicConsume(
-                queue: "amq.rabbitmq.reply-to",
-                autoAck: true,
-                consumer: replyConsumer);
+            // Enable Publisher Confirms
+            _channel.ConfirmSelect();
 
             var topology = new RabbitTopologyBuilder(_channel, _options);
             topology.Build();
@@ -78,15 +68,21 @@ public sealed class RabbitMqTransport : IMessageTransport, IDisposable
         var props = _channel.CreateBasicProperties();
         props.Persistent = true;
 
-        props.Headers = envelope.Headers.ToDictionary(kv => kv.Key, kv => (object)kv.Value);
+        var headers = envelope.Headers.ToDictionary(kv => kv.Key, kv => (object)kv.Value);
+        
+        // Ensure message-type and message-version are in headers
+        headers["message-type"] = envelope.MessageType;
+        if (!string.IsNullOrEmpty(envelope.MessageVersion))
+        {
+            headers["message-version"] = envelope.MessageVersion;
+        }
+        headers["timestamp"] = envelope.Timestamp.ToUnixTimeMilliseconds().ToString();
+        
+        props.Headers = headers;
         props.CorrelationId = envelope.CorrelationId;
         props.Type = envelope.MessageType;
         props.MessageId = envelope.MessageId ?? Guid.NewGuid().ToString();
-        
-        if (!string.IsNullOrEmpty(envelope.ReplyTo))
-        {
-            props.ReplyTo = envelope.ReplyTo;
-        }
+        props.Timestamp = new AmqpTimestamp(envelope.Timestamp.ToUnixTimeSeconds());
 
         _channel.BasicPublish(
             exchange: _options.MainExchangeName,
@@ -94,73 +90,23 @@ public sealed class RabbitMqTransport : IMessageTransport, IDisposable
             basicProperties: props,
             body: envelope.Body);
 
+        // Wait for broker confirmation
+        try
+        {
+            _channel.WaitForConfirmsOrDie(TimeSpan.FromSeconds(5));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to publish message {MessageId} to {Destination}. NACK or Timeout received.", envelope.MessageId, destination);
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            throw;
+        }
+
         return Task.CompletedTask;
     }
 
     public Task SendAsync(IMessageEnvelope envelope, string destination, CancellationToken ct)
         => PublishAsync(envelope, destination, ct);
-
-    public async Task<IMessageEnvelope> RequestAsync(IMessageEnvelope envelope, string destination, CancellationToken ct)
-    {
-        if (string.IsNullOrEmpty(envelope.CorrelationId))
-        {
-            throw new ArgumentException("CorrelationId is required for RequestAsync", nameof(envelope));
-        }
-
-        // Use Direct Reply-to
-        // Note: The ReplyTo property on the envelope object passed in is ignored/overwritten because
-        // we must use the specific address for this transport's reply mechanism.
-        // Actually, we should set it on the envelope that goes to PublishAsync?
-        // But PublishAsync takes the envelope property.
-        // Let's modify the envelope passing through.
-        // Since IMessageEnvelope is immutable-ish (properties are init), we might need to cast or rely on properties map.
-        // But we added ReplyTo to the interface.
-        
-        // However, we can't mutate the input envelope easily.
-        // We'll pass the ReplyTo via `PublishAsync` logic modification above.
-        // Wait, I updated PublishAsync to read envelope.ReplyTo.
-        // But I need to set it to "amq.rabbitmq.reply-to".
-        
-        // We need to create a new envelope or modify property logic?
-        // MessageEnvelope is a class with init properties.
-        var requestEnvelope = new MessageEnvelope
-        {
-            MessageType = envelope.MessageType,
-            MessageId = envelope.MessageId,
-            CorrelationId = envelope.CorrelationId,
-            CausationId = envelope.CausationId,
-            Headers = envelope.Headers,
-            Body = envelope.Body,
-            ReplyTo = "amq.rabbitmq.reply-to" 
-        };
-
-        var tcs = new TaskCompletionSource<IMessageEnvelope>(TaskCreationOptions.RunContinuationsAsynchronously);
-        
-        // Register cancellation
-        using var reg = ct.Register(() => 
-        {
-            if (_pendingRequests.TryRemove(envelope.CorrelationId, out var removedTcs))
-            {
-                removedTcs.TrySetCanceled();
-            }
-        });
-
-        if (!_pendingRequests.TryAdd(envelope.CorrelationId, tcs))
-        {
-             throw new InvalidOperationException($"Duplicate request with correlation ID {envelope.CorrelationId}");
-        }
-
-        try
-        {
-            await PublishAsync(requestEnvelope, destination, ct);
-            return await tcs.Task;
-        }
-        catch
-        {
-            _pendingRequests.TryRemove(envelope.CorrelationId, out _);
-            throw;
-        }
-    }
 
     public Task SubscribeAsync(
         string subscriptionName,
@@ -177,11 +123,15 @@ public sealed class RabbitMqTransport : IMessageTransport, IDisposable
 
             try
             {
-                ackResult = await handler(envelope, ct);
+                // Execute handler within the resilience pipeline (e.g., retries)
+                ackResult = await _resiliencePipeline.ExecuteAsync(async cancellationToken => 
+                {
+                    return await handler(envelope, cancellationToken);
+                }, ct);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Unhandled error in message handler; will retry.");
+                _logger.LogError(ex, "Unhandled error in message handler (after retries); will NACK/Retry via Broker.");
                 ackResult = TransportAcknowledge.Retry;
             }
 
@@ -227,12 +177,32 @@ public sealed class RabbitMqTransport : IMessageTransport, IDisposable
             headers["correlation-id"] = correlationId;
         }
 
+        // Extract message version from headers
+        string? messageVersion = null;
+        if (headers.TryGetValue("message-version", out var versionHeader))
+        {
+            messageVersion = versionHeader;
+        }
+
+        // Extract timestamp from AMQP or header
+        DateTimeOffset timestamp = DateTimeOffset.UtcNow;
+        if (props.Timestamp.UnixTime > 0)
+        {
+            timestamp = DateTimeOffset.FromUnixTimeSeconds(props.Timestamp.UnixTime);
+        }
+        else if (headers.TryGetValue("timestamp", out var tsHeader) && long.TryParse(tsHeader, out var tsMs))
+        {
+            timestamp = DateTimeOffset.FromUnixTimeMilliseconds(tsMs);
+        }
+
         return new MessageEnvelope
         {
             MessageType = props.Type ?? string.Empty,
+            MessageVersion = messageVersion,
             MessageId = messageId,
             CorrelationId = correlationId,
-            CausationId = null,
+            CausationId = headers.TryGetValue("causation-id", out var causationId) ? causationId : null,
+            Timestamp = timestamp,
             Headers = headers,
             Body = ea.Body.ToArray()
         };

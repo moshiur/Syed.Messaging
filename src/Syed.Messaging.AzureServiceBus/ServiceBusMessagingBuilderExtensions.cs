@@ -56,9 +56,4 @@ internal sealed class ServiceBusBus : IMessageBus
 
     public Task SendAsync<T>(string destination, T message, CancellationToken ct = default)
         => PublishAsync(destination, message, ct);
-
-    public Task<TResponse> RequestAsync<TRequest, TResponse>(string destination, TRequest message, CancellationToken ct = default)
-    {
-        throw new NotSupportedException("Request/Reply is not yet implemented for Azure Service Bus.");
-    }
 }

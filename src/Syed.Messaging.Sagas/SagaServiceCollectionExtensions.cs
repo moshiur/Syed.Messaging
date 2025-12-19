@@ -13,6 +13,10 @@ public static class SagaServiceCollectionExtensions
         configure(builder);
 
         services.TryAddSingleton<ISagaRegistry>(sp => builder.Build());
+        
+        // Lock provider (default: in-memory for single-instance deployments)
+        services.TryAddSingleton<ISagaLockProvider, InMemorySagaLockProvider>();
+        
         services.TryAddSingleton<ISagaRuntime, SagaRuntime>();
 
         // Timeout infrastructure
