@@ -25,6 +25,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Syed.Messaging.Core\Syed.Messaging.Core.csproj" />
     <ProjectReference Include="..\..\src\Syed.Messaging.Abstractions\Syed.Messaging.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\Syed.Messaging.RabbitMq\Syed.Messaging.RabbitMq.csproj" />
+    <ProjectReference Include="..\..\src\Syed.Messaging.SignalR\Syed.Messaging.SignalR.csproj" />
   </ItemGroup>
 
 </Project>

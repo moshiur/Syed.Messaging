@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
@@ -15,6 +16,7 @@ public sealed class RabbitMqTransport : IMessageTransport, IDisposable
     private readonly IConnection _connection;
     private readonly IModel _channel;
     private readonly ResiliencePipeline _resiliencePipeline;
+    private readonly ConcurrentDictionary<string, TaskCompletionSource<IMessageEnvelope>> _pendingRequests = new();
 
     public RabbitMqTransport(
         RabbitMqOptions options, 
@@ -39,6 +41,24 @@ public sealed class RabbitMqTransport : IMessageTransport, IDisposable
 
             // Enable Publisher Confirms
             _channel.ConfirmSelect();
+
+            // Setup Direct Reply-to Consumer for RPC
+            var replyConsumer = new AsyncEventingBasicConsumer(_channel);
+            replyConsumer.Received += (_, ea) =>
+            {
+                var correlationId = ea.BasicProperties.CorrelationId;
+                if (!string.IsNullOrEmpty(correlationId) && _pendingRequests.TryRemove(correlationId, out var tcs))
+                {
+                    var envelope = ToEnvelope(ea);
+                    tcs.TrySetResult(envelope);
+                }
+                return Task.CompletedTask;
+            };
+
+            _channel.BasicConsume(
+                queue: "amq.rabbitmq.reply-to",
+                autoAck: true,
+                consumer: replyConsumer);
 
             var topology = new RabbitTopologyBuilder(_channel, _options);
             topology.Build();
@@ -83,6 +103,12 @@ public sealed class RabbitMqTransport : IMessageTransport, IDisposable
         props.Type = envelope.MessageType;
         props.MessageId = envelope.MessageId ?? Guid.NewGuid().ToString();
         props.Timestamp = new AmqpTimestamp(envelope.Timestamp.ToUnixTimeSeconds());
+        
+        // RPC support: set ReplyTo if specified
+        if (!string.IsNullOrEmpty(envelope.ReplyTo))
+        {
+            props.ReplyTo = envelope.ReplyTo;
+        }
 
         _channel.BasicPublish(
             exchange: _options.MainExchangeName,
@@ -107,6 +133,46 @@ public sealed class RabbitMqTransport : IMessageTransport, IDisposable
 
     public Task SendAsync(IMessageEnvelope envelope, string destination, CancellationToken ct)
         => PublishAsync(envelope, destination, ct);
+
+    public async Task<IMessageEnvelope> RequestAsync(IMessageEnvelope envelope, string destination, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(envelope.CorrelationId))
+        {
+            throw new ArgumentException("CorrelationId is required for RequestAsync", nameof(envelope));
+        }
+
+        // Create envelope with ReplyTo set to Direct Reply-to queue
+        var requestEnvelope = new MessageEnvelope
+        {
+            MessageType = envelope.MessageType,
+            MessageVersion = envelope.MessageVersion,
+            MessageId = envelope.MessageId,
+            CorrelationId = envelope.CorrelationId,
+            CausationId = envelope.CausationId,
+            Headers = envelope.Headers,
+            Body = envelope.Body,
+            Timestamp = envelope.Timestamp,
+            ReplyTo = "amq.rabbitmq.reply-to"
+        };
+
+        var tcs = new TaskCompletionSource<IMessageEnvelope>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        using var reg = ct.Register(() =>
+            tcs.TrySetCanceled(ct));
+
+        _pendingRequests[envelope.CorrelationId] = tcs;
+
+        try
+        {
+            await PublishAsync(requestEnvelope, destination, ct);
+            return await tcs.Task;
+        }
+        finally
+        {
+            _pendingRequests.TryRemove(envelope.CorrelationId, out _);
+        }
+    }
+
 
     public Task SubscribeAsync(
         string subscriptionName,

@@ -41,6 +41,9 @@ public sealed class KafkaTransport : IMessageTransport, IDisposable
     public Task SendAsync(IMessageEnvelope envelope, string destination, CancellationToken ct)
         => PublishAsync(envelope, destination, ct);
 
+    public Task<IMessageEnvelope> RequestAsync(IMessageEnvelope envelope, string destination, CancellationToken ct)
+        => throw new NotSupportedException("RPC is not supported in Kafka transport");
+
     public async Task SubscribeAsync(
         string subscriptionName,
         string destination,

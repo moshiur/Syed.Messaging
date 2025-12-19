@@ -32,4 +32,23 @@ public sealed class MessagingBuilder
         Services.Replace(ServiceDescriptor.Singleton<ISerializer, TSerializer>());
         return this;
     }
+
+    /// <summary>
+    /// Registers an RPC handler that responds to requests with a response message.
+    /// </summary>
+    public MessagingBuilder AddRpcHandler<TRequest, TResponse, THandler>(
+        Action<ConsumerOptions<TRequest>> configure)
+        where THandler : class, IRpcHandler<TRequest, TResponse>
+    {
+        Services.AddScoped<IRpcHandler<TRequest, TResponse>, THandler>();
+
+        var options = new ConsumerOptions<TRequest>();
+        configure(options);
+        Services.AddSingleton(options);
+
+        Services.AddHostedService<RpcMessageConsumer<TRequest, TResponse>>();
+
+        return this;
+    }
 }
+

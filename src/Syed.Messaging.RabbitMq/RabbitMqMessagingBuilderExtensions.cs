@@ -23,7 +23,7 @@ public static class RabbitMqMessagingBuilderExtensions
     }
 }
 
-internal sealed class RabbitMqBus : IMessageBus
+public sealed class RabbitMqBus : IMessageBus
 {
     private readonly IMessageTransport _transport;
     private readonly ISerializer _serializer;
@@ -56,4 +56,27 @@ internal sealed class RabbitMqBus : IMessageBus
 
     public Task SendAsync<T>(string destination, T message, CancellationToken ct = default)
         => PublishAsync(destination, message, ct);
+
+    public async Task<TResponse> RequestAsync<TRequest, TResponse>(string destination, TRequest message, CancellationToken ct = default)
+    {
+        var correlationId = Guid.NewGuid().ToString();
+        var headers = new Dictionary<string, string>
+        {
+            ["message-id"] = Guid.NewGuid().ToString(),
+            ["correlation-id"] = correlationId
+        };
+
+        var envelope = new MessageEnvelope
+        {
+            MessageType = typeof(TRequest).FullName ?? typeof(TRequest).Name,
+            MessageId = headers["message-id"],
+            CorrelationId = correlationId,
+            Headers = headers,
+            Body = _serializer.Serialize(message)
+        };
+
+        var responseEnvelope = await _transport.RequestAsync(envelope, destination, ct);
+        return _serializer.Deserialize<TResponse>(responseEnvelope.Body);
+    }
 }
+

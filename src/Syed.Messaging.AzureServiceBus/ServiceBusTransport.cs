@@ -38,6 +38,9 @@ public sealed class ServiceBusTransport : IMessageTransport, IAsyncDisposable
     public Task SendAsync(IMessageEnvelope envelope, string destination, CancellationToken ct)
         => PublishAsync(envelope, destination, ct);
 
+    public Task<IMessageEnvelope> RequestAsync(IMessageEnvelope envelope, string destination, CancellationToken ct)
+        => throw new NotSupportedException("RPC is not supported in Azure Service Bus transport");
+
     public async Task SubscribeAsync(
         string subscriptionName,
         string destination,
