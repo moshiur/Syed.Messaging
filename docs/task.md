@@ -53,4 +53,21 @@
 - [x] GenericMessageConsumer integration (De-duplication)
 - [x] Unit Tests & Demo Integration
 
-## Test Summary: 65 Tests Passing
+## Test Summary: 68+ Tests Passing
+
+# Phase 4: Observability & Developer Experience
+
+## Milestone J: DLQ Management Utilities ✅ COMPLETE
+- [x] `IDlqManager` interface
+- [x] `RabbitMqDlqManager` implementation
+- [x] Build verification (tests pending real RabbitMQ instance)
+
+## Milestone K: Structured Logging Scopes ✅ COMPLETE
+- [x] Add `MessageId`, `CorrelationId`, `MessageType` to log scopes
+- [x] Update `GenericMessageConsumer` with `BeginScope`
+
+## Milestone L: Metrics Counters ✅ COMPLETE
+- [x] Add `System.Diagnostics.Metrics` counters (`MessagingMetrics`)
+- [x] Counters: published, received, processed, failed, retried, DLQ'd
+- [x] Histogram: processing_duration
+
