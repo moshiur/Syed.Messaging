@@ -1,11 +1,11 @@
 using System.Diagnostics;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
+using Polly;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using Syed.Messaging;
-
-using Polly;
+using Syed.Messaging.Core;
 
 namespace Syed.Messaging.RabbitMq;
 
@@ -120,6 +120,7 @@ public sealed class RabbitMqTransport : IMessageTransport, IDisposable
         try
         {
             _channel.WaitForConfirmsOrDie(TimeSpan.FromSeconds(5));
+            MessagingMetrics.MessagesPublished.Add(1, new KeyValuePair<string, object?>("message_type", envelope.MessageType));
         }
         catch (Exception ex)
         {

@@ -43,8 +43,11 @@ public class GenericMessageConsumer<TMessage> : BackgroundService
     private async Task<TransportAcknowledge> HandleEnvelopeAsync(IMessageEnvelope envelope, CancellationToken ct)
     {
         await _concurrencySemaphore.WaitAsync(ct);
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         try
         {
+            MessagingMetrics.MessagesReceived.Add(1, new KeyValuePair<string, object?>("message_type", envelope.MessageType));
+            
             using var activity = MessagingDiagnostics.ActivitySource.StartActivity(
                 MessagingDiagnostics.ConsumeActivityName,
                 ActivityKind.Consumer);
@@ -57,6 +60,15 @@ public class GenericMessageConsumer<TMessage> : BackgroundService
             }
 
             var ctx = BuildContext(envelope);
+            
+            // Add structured logging scope for correlation
+            using var logScope = _logger.BeginScope(new Dictionary<string, object?>
+            {
+                ["MessageId"] = ctx.MessageId,
+                ["CorrelationId"] = ctx.CorrelationId,
+                ["MessageType"] = envelope.MessageType
+            });
+            
             TMessage message;
 
             try
@@ -115,6 +127,7 @@ public class GenericMessageConsumer<TMessage> : BackgroundService
                     }
                 }
 
+                MessagingMetrics.MessagesProcessed.Add(1, new KeyValuePair<string, object?>("message_type", envelope.MessageType));
                 return TransportAcknowledge.Ack;
             }
             catch (Exception ex)
@@ -126,16 +139,22 @@ public class GenericMessageConsumer<TMessage> : BackgroundService
                     ctx.RetryCount,
                     ctx.CorrelationId);
 
+                MessagingMetrics.MessagesFailed.Add(1, new KeyValuePair<string, object?>("message_type", envelope.MessageType));
+                
                 if (ctx.RetryCount >= _options.RetryPolicy.MaxRetries)
                 {
+                    MessagingMetrics.MessagesDeadLettered.Add(1, new KeyValuePair<string, object?>("message_type", envelope.MessageType));
                     return TransportAcknowledge.DeadLetter;
                 }
 
+                MessagingMetrics.MessagesRetried.Add(1, new KeyValuePair<string, object?>("message_type", envelope.MessageType));
                 return TransportAcknowledge.Retry;
             }
         }
         finally
         {
+            stopwatch.Stop();
+            MessagingMetrics.ProcessingDuration.Record(stopwatch.Elapsed.TotalMilliseconds, new KeyValuePair<string, object?>("message_type", envelope.MessageType));
             _concurrencySemaphore.Release();
         }
     }
