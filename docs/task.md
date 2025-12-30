@@ -71,3 +71,23 @@
 - [x] Counters: published, received, processed, failed, retried, DLQ'd
 - [x] Histogram: processing_duration
 
+# Phase 5: Transport Parity & Evolution
+
+## Milestone M: Kafka Transport Improvements ✅ COMPLETE
+- [x] Add partition key support (`partition-key` header)
+- [x] Delayed retry topic pattern (retry-30s, retry-60s, retry-300s)
+- [x] Add metrics integration (`MessagingMetrics`)
+- [x] Add structured logging scopes
+
+## Milestone N: Azure Service Bus Improvements ✅ COMPLETE
+- [x] Scheduled message retry (using `ScheduledEnqueueTime`)
+- [x] Session-based saga support (`session-id` header)
+- [x] Add metrics integration
+- [x] Add structured logging scopes
+
+## Milestone O: Schema Registry Abstraction
+- [ ] `ISchemaRegistry` interface
+- [ ] `VersionedMessage<T>` wrapper
+- [ ] Breaking change detection helpers
+
+
