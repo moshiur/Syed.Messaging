@@ -57,6 +57,23 @@ internal sealed class KafkaBus : IMessageBus
     public Task SendAsync<T>(string destination, T message, CancellationToken ct = default)
         => PublishAsync(destination, message, ct);
 
+    public Task PublishRawAsync(string destination, byte[] payload, string? messageType = null, Dictionary<string, string>? headers = null, CancellationToken ct = default)
+    {
+        var msgId = Guid.NewGuid().ToString();
+        var allHeaders = headers ?? new Dictionary<string, string>();
+        allHeaders["message-id"] = msgId;
+        
+        var envelope = new MessageEnvelope
+        {
+            MessageType = messageType ?? "raw",
+            MessageId = msgId,
+            Headers = allHeaders,
+            Body = payload
+        };
+
+        return _transport.PublishAsync(envelope, destination, ct);
+    }
+
     public Task<TResponse> RequestAsync<TRequest, TResponse>(string destination, TRequest message, CancellationToken ct = default)
         => throw new NotSupportedException("RPC is not supported in Kafka transport");
 }

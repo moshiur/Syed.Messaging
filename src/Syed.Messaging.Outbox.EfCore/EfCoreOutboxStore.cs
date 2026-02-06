@@ -3,6 +3,9 @@ using Syed.Messaging;
 
 namespace Syed.Messaging.Outbox;
 
+/// <summary>
+/// EF Core based outbox store for persisting and retrieving outbox messages.
+/// </summary>
 public class EfCoreOutboxStore<TContext> : IOutboxStore where TContext : DbContext
 {
     private readonly TContext _db;
