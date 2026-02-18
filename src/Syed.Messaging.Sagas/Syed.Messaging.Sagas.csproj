@@ -7,6 +7,7 @@
     <PackageId>Syed.Messaging.Sagas</PackageId>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+  <IsPackable>true</IsPackable>
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Syed.Messaging.Sagas.Tests" />

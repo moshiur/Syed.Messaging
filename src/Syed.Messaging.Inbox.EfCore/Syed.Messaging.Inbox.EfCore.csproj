@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
     <PackageId>Syed.Messaging.Inbox.EfCore</PackageId>
     <Description>EF Core implementation of the Inbox pattern for Syed.Messaging.</Description>
+  <IsPackable>true</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>

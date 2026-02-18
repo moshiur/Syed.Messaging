@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
     <PackageId>Syed.Messaging.HealthChecks</PackageId>
     <Description>ASP.NET Core health check integration for Syed.Messaging.</Description>
+  <IsPackable>true</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
