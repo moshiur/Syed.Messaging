@@ -7,6 +7,6 @@
     <PackageId>Syed.Messaging.Abstractions</PackageId>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-  <IsPackable>true</IsPackable>
+    <IsPackable>true</IsPackable>
   </PropertyGroup>
 </Project>

@@ -7,7 +7,7 @@
     <PackageId>Syed.Messaging.Kafka</PackageId>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-  <IsPackable>true</IsPackable>
+    <IsPackable>true</IsPackable>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Syed.Messaging.Abstractions\Syed.Messaging.Abstractions.csproj" />

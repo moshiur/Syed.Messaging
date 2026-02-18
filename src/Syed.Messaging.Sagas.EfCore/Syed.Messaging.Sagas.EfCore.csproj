@@ -8,7 +8,7 @@
     <PackageId>Syed.Messaging.Sagas.EfCore</PackageId>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-  <IsPackable>true</IsPackable>
+    <IsPackable>true</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
