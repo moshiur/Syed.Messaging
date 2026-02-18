@@ -63,7 +63,7 @@ jobs:
       - name: Pack NuGet packages
         run: |
           for proj in src/**/*.csproj; do
-            dotnet pack "$proj" --configuration ${{ env.CONFIGURATION }} --no-build -o ./nupkgs -p:PackageVersion=${{ steps.version.outputs.VERSION }} || true
+            dotnet pack "$proj" --configuration ${{ env.CONFIGURATION }} -o ./nupkgs -p:PackageVersion=${{ steps.version.outputs.VERSION }} || true
           done
 
       - name: List generated packages
