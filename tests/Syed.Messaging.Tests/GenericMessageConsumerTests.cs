@@ -73,16 +73,21 @@ public class GenericMessageConsumerTests
         // Or we can mock the transport's SubscribeAsync and capture the delegate.
         
         Func<IMessageEnvelope, CancellationToken, Task<TransportAcknowledge>>? capturedHandler = null;
+        var handlerCaptured = new TaskCompletionSource<bool>();
         _transportMock.Setup(x => x.SubscribeAsync(
                 It.IsAny<string>(), 
                 It.IsAny<string>(), 
                 It.IsAny<Func<IMessageEnvelope, CancellationToken, Task<TransportAcknowledge>>>(), 
                 It.IsAny<CancellationToken>()))
             .Callback<string, string, Func<IMessageEnvelope, CancellationToken, Task<TransportAcknowledge>>, CancellationToken>(
-                (sub, dest, handler, ct) => capturedHandler = handler);
+                (sub, dest, handler, ct) => { capturedHandler = handler; handlerCaptured.TrySetResult(true); })
+            .Returns(Task.CompletedTask);
 
         // Act - Start to register subscription
         await consumer.StartAsync(CancellationToken.None);
+        
+        // Wait for ExecuteAsync to fire (may be async in .NET 10+)
+        await Task.WhenAny(handlerCaptured.Task, Task.Delay(TimeSpan.FromSeconds(5)));
         
         // Assert subscription happened
         capturedHandler.Should().NotBeNull();
@@ -119,15 +124,18 @@ public class GenericMessageConsumerTests
         };
 
         Func<IMessageEnvelope, CancellationToken, Task<TransportAcknowledge>>? capturedHandler = null;
+        var handlerCaptured = new TaskCompletionSource<bool>();
         _transportMock.Setup(x => x.SubscribeAsync(
                 It.IsAny<string>(), 
                 It.IsAny<string>(), 
                 It.IsAny<Func<IMessageEnvelope, CancellationToken, Task<TransportAcknowledge>>>(), 
                 It.IsAny<CancellationToken>()))
             .Callback<string, string, Func<IMessageEnvelope, CancellationToken, Task<TransportAcknowledge>>, CancellationToken>(
-                (sub, dest, handler, ct) => capturedHandler = handler);
+                (sub, dest, handler, ct) => { capturedHandler = handler; handlerCaptured.TrySetResult(true); })
+            .Returns(Task.CompletedTask);
 
         await consumer.StartAsync(CancellationToken.None);
+        await Task.WhenAny(handlerCaptured.Task, Task.Delay(TimeSpan.FromSeconds(5)));
 
         // Act
         var result = await capturedHandler!(envelope, CancellationToken.None);

@@ -77,7 +77,18 @@ public class GenericMessageConsumer<TMessage> : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to deserialize message {MessageType}, moving to DLQ", envelope.MessageType);
+                _logger.LogWarning(ex,
+                    "[POISON] Message {MessageId} ({MessageType}) failed deserialization — classified as poison. " +
+                    "Moving to DLQ. Body length: {BodyLength} bytes",
+                    envelope.MessageId, envelope.MessageType, envelope.Body.Length);
+
+                // Tag envelope headers so the DLQ message carries the reason
+                envelope.Headers["x-poison-reason"] = "deserialization_failure";
+                envelope.Headers["x-poison-exception"] = ex.GetType().Name;
+                envelope.Headers["x-poison-timestamp"] = DateTimeOffset.UtcNow.ToString("o");
+
+                MessagingMetrics.MessagesPoisoned.Add(1, new KeyValuePair<string, object?>("message_type", envelope.MessageType));
+                MessagingMetrics.MessagesDeadLettered.Add(1, new KeyValuePair<string, object?>("message_type", envelope.MessageType));
                 return TransportAcknowledge.DeadLetter;
             }
 
@@ -143,6 +154,18 @@ public class GenericMessageConsumer<TMessage> : BackgroundService
                 
                 if (ctx.RetryCount >= _options.RetryPolicy.MaxRetries)
                 {
+                    _logger.LogWarning(
+                        "[POISON] Message {MessageId} ({MessageType}) exhausted all {MaxRetries} retries — classified as poison. " +
+                        "Moving to DLQ. Last error: {ErrorMessage}",
+                        envelope.MessageId, envelope.MessageType, _options.RetryPolicy.MaxRetries, ex.Message);
+
+                    // Tag envelope headers so the DLQ message carries the reason
+                    envelope.Headers["x-poison-reason"] = "retry_exhausted";
+                    envelope.Headers["x-poison-retries"] = ctx.RetryCount.ToString();
+                    envelope.Headers["x-poison-exception"] = ex.GetType().Name;
+                    envelope.Headers["x-poison-timestamp"] = DateTimeOffset.UtcNow.ToString("o");
+
+                    MessagingMetrics.MessagesPoisoned.Add(1, new KeyValuePair<string, object?>("message_type", envelope.MessageType));
                     MessagingMetrics.MessagesDeadLettered.Add(1, new KeyValuePair<string, object?>("message_type", envelope.MessageType));
                     return TransportAcknowledge.DeadLetter;
                 }

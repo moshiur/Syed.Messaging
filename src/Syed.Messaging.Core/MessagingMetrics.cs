@@ -60,6 +60,15 @@ public static class MessagingMetrics
         description: "Number of messages sent to Dead Letter Queue");
 
     /// <summary>
+    /// Counter for messages identified as poison (deserialization failures, consistently failing handlers).
+    /// A subset of dead-lettered messages — indicates malformed or incompatible messages.
+    /// </summary>
+    public static readonly Counter<long> MessagesPoisoned = Meter.CreateCounter<long>(
+        "messaging.messages.poisoned",
+        unit: "{message}",
+        description: "Number of messages identified as poison (undeserializable or consistently failing)");
+
+    /// <summary>
     /// Histogram for message processing duration.
     /// </summary>
     public static readonly Histogram<double> ProcessingDuration = Meter.CreateHistogram<double>(

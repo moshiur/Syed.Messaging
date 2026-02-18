@@ -1,7 +1,7 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <AssemblyName>Syed.Messaging.OpenTelemetry</AssemblyName>
     <RootNamespace>Syed.Messaging.OpenTelemetry</RootNamespace>
     <Description>OpenTelemetry instrumentation for Syed.Messaging.</Description>

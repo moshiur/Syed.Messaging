@@ -13,7 +13,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Syed.Messaging.Abstractions\Syed.Messaging.Abstractions.csproj" />
     <ProjectReference Include="..\..\src\Syed.Messaging.Core\Syed.Messaging.Core.csproj" />
-    <ProjectReference Include="..\..\src\Syed.Messaging.RabbitMq\Syed.Messaging.RabbitMq.csproj" />
+    <ProjectReference Include="..\..\src\Syed.Messaging.AzureServiceBus\Syed.Messaging.AzureServiceBus.csproj" />
   </ItemGroup>
 
 </Project>

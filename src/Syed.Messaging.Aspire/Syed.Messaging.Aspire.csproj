@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <AssemblyName>Syed.Messaging.Aspire</AssemblyName>
     <RootNamespace>Syed.Messaging.Aspire</RootNamespace>
     <Description>.NET Aspire helpers for Syed.Messaging framework.</Description>

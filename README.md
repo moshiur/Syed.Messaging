@@ -3,7 +3,7 @@
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Build](https://img.shields.io/badge/build-alpha-brightgreen.svg)
-![.NET](https://img.shields.io/badge/.NET-8.0-blue.svg)
+![.NET](https://img.shields.io/badge/.NET-10.0-blue.svg)
 ![Status](https://img.shields.io/badge/status-experimental-orange.svg)
 
 Syed.Messaging is a **minimal, clean, extensible messaging framework** for .NET applications.

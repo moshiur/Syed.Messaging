@@ -202,7 +202,7 @@ public sealed class RabbitMqTransport : IMessageTransport, IDisposable
                 ackResult = TransportAcknowledge.Retry;
             }
 
-            HandleAckResult(ea, ackResult);
+            HandleAckResult(ea, envelope, ackResult);
         };
 
         _channel.BasicConsume(
@@ -275,7 +275,7 @@ public sealed class RabbitMqTransport : IMessageTransport, IDisposable
         };
     }
 
-    private void HandleAckResult(BasicDeliverEventArgs ea, TransportAcknowledge result)
+    private void HandleAckResult(BasicDeliverEventArgs ea, IMessageEnvelope envelope, TransportAcknowledge result)
     {
         switch (result)
         {
@@ -316,7 +316,16 @@ public sealed class RabbitMqTransport : IMessageTransport, IDisposable
             {
                 var props = _channel.CreateBasicProperties();
                 props.Persistent = true;
-                props.Headers = ea.BasicProperties.Headers;
+                props.Headers = ea.BasicProperties.Headers ?? new Dictionary<string, object>();
+
+                // Merge poison headers from the envelope (set by GenericMessageConsumer)
+                foreach (var kv in envelope.Headers)
+                {
+                    if (kv.Key.StartsWith("x-poison-"))
+                    {
+                        props.Headers[kv.Key] = System.Text.Encoding.UTF8.GetBytes(kv.Value);
+                    }
+                }
 
                 _channel.BasicPublish(
                     exchange: _options.DeadLetterExchangeName,
