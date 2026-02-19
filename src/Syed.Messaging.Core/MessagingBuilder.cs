@@ -50,5 +50,16 @@ public sealed class MessagingBuilder
 
         return this;
     }
+
+    /// <summary>
+    /// Registers a message middleware that executes before every handler.
+    /// Middlewares run in registration order (first registered = outermost).
+    /// </summary>
+    public MessagingBuilder AddMiddleware<TMiddleware>()
+        where TMiddleware : class, IMessageMiddleware
+    {
+        Services.AddScoped<IMessageMiddleware, TMiddleware>();
+        return this;
+    }
 }
 

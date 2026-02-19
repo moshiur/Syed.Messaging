@@ -45,6 +45,10 @@ public class GenericMessageConsumerTests
         // By default returning null unless specific test sets it up
         _serviceProviderMock.Setup(x => x.GetService(typeof(IInboxStore)))
             .Returns(null); // Default no inbox
+
+        // Default: no middleware registered
+        _serviceProviderMock.Setup(x => x.GetService(typeof(IEnumerable<IMessageMiddleware>)))
+            .Returns(Enumerable.Empty<IMessageMiddleware>());
     }
 
     [Fact]
@@ -146,6 +150,126 @@ public class GenericMessageConsumerTests
         _inboxStoreMock.Verify(x => x.MarkProcessedAsync(messageId, null, It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    [Fact]
+    public async Task HandleAsync_ShouldExecuteMiddleware_BeforeHandler()
+    {
+        // Arrange
+        var messageId = "msg-mw-1";
+        var executionOrder = new List<string>();
+
+        _serializerMock.Setup(x => x.Deserialize<TestMessage>(It.IsAny<byte[]>()))
+            .Returns(new TestMessage());
+
+        _handlerMock.Setup(x => x.HandleAsync(It.IsAny<TestMessage>(), It.IsAny<MessageContext>(), It.IsAny<CancellationToken>()))
+            .Callback(() => executionOrder.Add("handler"))
+            .Returns(Task.CompletedTask);
+
+        var middlewareMock = new Mock<IMessageMiddleware>();
+        middlewareMock.Setup(x => x.InvokeAsync(It.IsAny<IMessageEnvelope>(), It.IsAny<IServiceProvider>(), It.IsAny<Func<Task>>()))
+            .Returns<IMessageEnvelope, IServiceProvider, Func<Task>>(async (env, sp, next) =>
+            {
+                executionOrder.Add("middleware");
+                await next();
+            });
+
+        _serviceProviderMock.Setup(x => x.GetService(typeof(IEnumerable<IMessageMiddleware>)))
+            .Returns(new List<IMessageMiddleware> { middlewareMock.Object });
+
+        var consumer = CreateConsumer();
+        var envelope = new MessageEnvelope
+        {
+            MessageId = messageId,
+            MessageType = "TestMessage",
+            Body = new byte[0]
+        };
+
+        Func<IMessageEnvelope, CancellationToken, Task<TransportAcknowledge>>? capturedHandler = null;
+        var handlerCaptured = new TaskCompletionSource<bool>();
+        _transportMock.Setup(x => x.SubscribeAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<Func<IMessageEnvelope, CancellationToken, Task<TransportAcknowledge>>>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<string, string, Func<IMessageEnvelope, CancellationToken, Task<TransportAcknowledge>>, CancellationToken>(
+                (sub, dest, handler, ct) => { capturedHandler = handler; handlerCaptured.TrySetResult(true); })
+            .Returns(Task.CompletedTask);
+
+        await consumer.StartAsync(CancellationToken.None);
+        await Task.WhenAny(handlerCaptured.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+
+        // Act
+        var result = await capturedHandler!(envelope, CancellationToken.None);
+
+        // Assert
+        result.Should().Be(TransportAcknowledge.Ack);
+        executionOrder.Should().Equal("middleware", "handler");
+        middlewareMock.Verify(x => x.InvokeAsync(envelope, It.IsAny<IServiceProvider>(), It.IsAny<Func<Task>>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task HandleAsync_ShouldExecuteMiddlewaresInOrder()
+    {
+        // Arrange
+        var executionOrder = new List<string>();
+
+        _serializerMock.Setup(x => x.Deserialize<TestMessage>(It.IsAny<byte[]>()))
+            .Returns(new TestMessage());
+
+        _handlerMock.Setup(x => x.HandleAsync(It.IsAny<TestMessage>(), It.IsAny<MessageContext>(), It.IsAny<CancellationToken>()))
+            .Callback(() => executionOrder.Add("handler"))
+            .Returns(Task.CompletedTask);
+
+        var middleware1 = new Mock<IMessageMiddleware>();
+        middleware1.Setup(x => x.InvokeAsync(It.IsAny<IMessageEnvelope>(), It.IsAny<IServiceProvider>(), It.IsAny<Func<Task>>()))
+            .Returns<IMessageEnvelope, IServiceProvider, Func<Task>>(async (env, sp, next) =>
+            {
+                executionOrder.Add("mw1-before");
+                await next();
+                executionOrder.Add("mw1-after");
+            });
+
+        var middleware2 = new Mock<IMessageMiddleware>();
+        middleware2.Setup(x => x.InvokeAsync(It.IsAny<IMessageEnvelope>(), It.IsAny<IServiceProvider>(), It.IsAny<Func<Task>>()))
+            .Returns<IMessageEnvelope, IServiceProvider, Func<Task>>(async (env, sp, next) =>
+            {
+                executionOrder.Add("mw2-before");
+                await next();
+                executionOrder.Add("mw2-after");
+            });
+
+        _serviceProviderMock.Setup(x => x.GetService(typeof(IEnumerable<IMessageMiddleware>)))
+            .Returns(new List<IMessageMiddleware> { middleware1.Object, middleware2.Object });
+
+        var consumer = CreateConsumer();
+        var envelope = new MessageEnvelope
+        {
+            MessageId = "msg-mw-2",
+            MessageType = "TestMessage",
+            Body = new byte[0]
+        };
+
+        Func<IMessageEnvelope, CancellationToken, Task<TransportAcknowledge>>? capturedHandler = null;
+        var handlerCaptured = new TaskCompletionSource<bool>();
+        _transportMock.Setup(x => x.SubscribeAsync(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<Func<IMessageEnvelope, CancellationToken, Task<TransportAcknowledge>>>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<string, string, Func<IMessageEnvelope, CancellationToken, Task<TransportAcknowledge>>, CancellationToken>(
+                (sub, dest, handler, ct) => { capturedHandler = handler; handlerCaptured.TrySetResult(true); })
+            .Returns(Task.CompletedTask);
+
+        await consumer.StartAsync(CancellationToken.None);
+        await Task.WhenAny(handlerCaptured.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+
+        // Act
+        var result = await capturedHandler!(envelope, CancellationToken.None);
+
+        // Assert
+        result.Should().Be(TransportAcknowledge.Ack);
+        executionOrder.Should().Equal("mw1-before", "mw2-before", "handler", "mw2-after", "mw1-after");
+    }
+
     private GenericMessageConsumer<TestMessage> CreateConsumer()
     {
         return new GenericMessageConsumer<TestMessage>(
@@ -172,3 +296,4 @@ public static class LoggerMockExtensions
             $"Expected log message containing '{messageContains}'");
     }
 }
+

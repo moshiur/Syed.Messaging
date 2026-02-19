@@ -113,7 +113,26 @@ public class GenericMessageConsumer<TMessage> : BackgroundService
                 // --- INBOX LOGIC END ---
 
                 var handler = scope.ServiceProvider.GetRequiredService<IMessageHandler<TMessage>>();
-                await handler.HandleAsync(message, ctx, ct);
+
+                // --- MIDDLEWARE PIPELINE ---
+                var middlewares = scope.ServiceProvider.GetServices<IMessageMiddleware>()?.ToList();
+
+                if (middlewares is { Count: > 0 })
+                {
+                    // Build pipeline: each middleware wraps the next, handler is the terminal
+                    Func<Task> pipeline = () => handler.HandleAsync(message, ctx, ct);
+                    foreach (var mw in Enumerable.Reverse(middlewares))
+                    {
+                        var next = pipeline;
+                        var current = mw;
+                        pipeline = () => current.InvokeAsync(envelope, scope.ServiceProvider, next);
+                    }
+                    await pipeline();
+                }
+                else
+                {
+                    await handler.HandleAsync(message, ctx, ct);
+                }
 
                 // --- INBOX MARK PROCESSED ---
                 if (inboxStore != null && !string.IsNullOrEmpty(envelope.MessageId))

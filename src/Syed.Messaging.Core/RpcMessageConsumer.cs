@@ -77,7 +77,31 @@ public class RpcMessageConsumer<TRequest, TResponse> : BackgroundService
             {
                 using var scope = _scopeFactory.CreateScope();
                 var handler = scope.ServiceProvider.GetRequiredService<IRpcHandler<TRequest, TResponse>>();
-                var response = await handler.HandleAsync(request, ctx, ct);
+                TResponse response = default!;
+
+                // --- MIDDLEWARE PIPELINE ---
+                var middlewares = scope.ServiceProvider.GetServices<IMessageMiddleware>()?.ToList();
+
+                async Task invokeHandler()
+                {
+                    response = await handler.HandleAsync(request, ctx, ct);
+                }
+
+                if (middlewares is { Count: > 0 })
+                {
+                    Func<Task> pipeline = invokeHandler;
+                    foreach (var mw in Enumerable.Reverse(middlewares))
+                    {
+                        var next = pipeline;
+                        var current = mw;
+                        pipeline = () => current.InvokeAsync(envelope, scope.ServiceProvider, next);
+                    }
+                    await pipeline();
+                }
+                else
+                {
+                    await invokeHandler();
+                }
 
                 // Send response back if ReplyTo is specified
                 if (!string.IsNullOrEmpty(envelope.ReplyTo))
