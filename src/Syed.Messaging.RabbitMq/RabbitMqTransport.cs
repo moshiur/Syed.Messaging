@@ -181,6 +181,26 @@ public sealed class RabbitMqTransport : IMessageTransport, IDisposable
         Func<IMessageEnvelope, CancellationToken, Task<TransportAcknowledge>> handler,
         CancellationToken ct)
     {
+        // Auto-declare a per-destination queue bound to the main exchange.
+        // Each consumer gets its own queue so it only receives messages matching its destination.
+        var queueName = $"{destination}.queue";
+        var queueArgs = new Dictionary<string, object>
+        {
+            { "x-dead-letter-exchange", _options.RetryExchangeName },
+            { "x-dead-letter-routing-key", destination }
+        };
+
+        _channel.QueueDeclare(queueName, durable: true, exclusive: false, autoDelete: false, arguments: queueArgs);
+        _channel.QueueBind(queueName, _options.MainExchangeName, routingKey: destination);
+
+        // Lazily bind retry and DLQ queues for this destination (QueueBind is idempotent)
+        _channel.QueueBind(_options.RetryQueueName, _options.RetryExchangeName, routingKey: destination);
+        _channel.QueueBind(_options.DeadLetterQueueName, _options.DeadLetterExchangeName, routingKey: destination);
+
+        _logger.LogInformation(
+            "Subscribed to destination '{Destination}' via queue '{QueueName}'",
+            destination, queueName);
+
         var consumer = new AsyncEventingBasicConsumer(_channel);
 
         consumer.Received += async (_, ea) =>
@@ -206,7 +226,7 @@ public sealed class RabbitMqTransport : IMessageTransport, IDisposable
         };
 
         _channel.BasicConsume(
-            queue: _options.MainQueueName,
+            queue: queueName,
             autoAck: false,
             consumer: consumer);
 
@@ -304,7 +324,7 @@ public sealed class RabbitMqTransport : IMessageTransport, IDisposable
 
                 _channel.BasicPublish(
                     exchange: _options.RetryExchangeName,
-                    routingKey: _options.RoutingKey,
+                    routingKey: ea.RoutingKey,
                     basicProperties: props,
                     body: ea.Body);
 
@@ -329,7 +349,7 @@ public sealed class RabbitMqTransport : IMessageTransport, IDisposable
 
                 _channel.BasicPublish(
                     exchange: _options.DeadLetterExchangeName,
-                    routingKey: _options.RoutingKey,
+                    routingKey: ea.RoutingKey,
                     basicProperties: props,
                     body: ea.Body);
 

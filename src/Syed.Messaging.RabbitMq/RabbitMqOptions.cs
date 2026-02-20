@@ -8,6 +8,7 @@ public sealed class RabbitMqOptions
     public string RetryExchangeName { get; set; } = "app.retry.exchange";
     public string DeadLetterExchangeName { get; set; } = "app.dlq.exchange";
 
+    [Obsolete("Use per-destination queues via SubscribeAsync. Queues are now auto-declared per destination.")]
     public string MainQueueName { get; set; } = "app.main.queue";
     public string RetryQueueName { get; set; } = "app.retry.queue";
     public string DeadLetterQueueName { get; set; } = "app.dlq.queue";
