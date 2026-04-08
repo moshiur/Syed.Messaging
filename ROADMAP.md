@@ -9,30 +9,30 @@ real-world developer experience, operational resilience, or architectural clarit
 ## 📌 Status Overview
 
 
-| Area                     | Status     | Notes                                               |
-| ------------------------ | ---------- | --------------------------------------------------- |
-| Abstractions             | ✅ Stable   | Good conceptual clarity; low churn expected         |
-| RabbitMQ Transport       | ✅ Stable   | Publisher confirms, retry, DLQ, RPC support         |
+| Area                     | Status     | Notes                                                            |
+| ------------------------ | ---------- | ---------------------------------------------------------------- |
+| Abstractions             | ✅ Stable   | Good conceptual clarity; low churn expected                      |
+| RabbitMQ Transport       | ✅ Stable   | Publisher confirms, retry, DLQ, RPC support                      |
 | Kafka Transport          | ✅ Improved | Partition-aware dispatch, rebalance safety, sample + tests added |
-| Azure Service Bus        | ⚠️ Minimal | Needs scheduling/backoff + full config              |
-| Outbox (EF Core)         | ✅ Stable   | Type registry + envelope + raw mode + multi-tenancy |
-| Inbox (EF Core)          | ✅ Complete | Idempotent consumer pattern                         |
-| Versioning Helpers       | ✅ Stable   | `VersionedMessage<T>` + upgrade helpers             |
-| Message Type Registry    | ✅ Complete | Safe type resolution with versioning                |
-| Schema Registry          | ✅ Complete | Abstraction with validation + compatibility         |
-| Distributed Tracing      | ✅ Complete | OpenTelemetry package with activity spans           |
-| Metrics                  | ✅ Complete | 7 instruments via System.Diagnostics.Metrics        |
-| Saga Primitives          | ✅ Stable   | Correlation, timeouts, state management             |
-| Saga EF Core Persistence | ✅ Complete | State + Timeout stores                              |
-| Saga Locking             | ✅ Complete | InMemory, NoOp, Redis providers                     |
-| RPC Support              | ✅ Complete | Request/response messaging pattern                  |
-| SignalR Bridge           | ✅ Complete | Bridge messaging events to SignalR hubs             |
-| Health Checks            | ✅ Complete | ASP.NET Core integration + per-transport checks     |
-| DLQ Management           | ✅ Complete | Peek, requeue, purge operations                     |
-| Service Mesh             | ✅ Complete | Istio/Linkerd/Envoy options, mTLS, traffic policy   |
-| Service Discovery        | ✅ Complete | Kubernetes DNS, Consul, standard DNS                |
-| Resilience (Polly)       | ✅ Complete | Configurable resilience pipelines                   |
-| Aspire Integration       | ✅ Simple   | Expand with components                              |
+| Azure Service Bus        | ⚠️ Minimal | Needs scheduling/backoff + full config                           |
+| Outbox (EF Core)         | ✅ Stable   | Type registry + envelope + raw mode + multi-tenancy              |
+| Inbox (EF Core)          | ✅ Complete | Idempotent consumer pattern                                      |
+| Versioning Helpers       | ✅ Stable   | `VersionedMessage<T>` + upgrade helpers                          |
+| Message Type Registry    | ✅ Complete | Safe type resolution with versioning                             |
+| Schema Registry          | ✅ Complete | Abstraction with validation + compatibility                      |
+| Distributed Tracing      | ✅ Complete | OpenTelemetry package with activity spans                        |
+| Metrics                  | ✅ Complete | 7 instruments via System.Diagnostics.Metrics                     |
+| Saga Primitives          | ✅ Stable   | Correlation, timeouts, state management                          |
+| Saga EF Core Persistence | ✅ Complete | State + Timeout stores                                           |
+| Saga Locking             | ✅ Complete | InMemory, NoOp, Redis providers                                  |
+| RPC Support              | ✅ Complete | Request/response messaging pattern                               |
+| SignalR Bridge           | ✅ Complete | Bridge messaging events to SignalR hubs                          |
+| Health Checks            | ✅ Complete | ASP.NET Core integration + per-transport checks                  |
+| DLQ Management           | ✅ Complete | Peek, requeue, purge operations                                  |
+| Service Mesh             | ✅ Complete | Istio/Linkerd/Envoy options, mTLS, traffic policy                |
+| Service Discovery        | ✅ Complete | Kubernetes DNS, Consul, standard DNS                             |
+| Resilience (Polly)       | ✅ Complete | Configurable resilience pipelines                                |
+| Aspire Integration       | ✅ Simple   | Expand with components                                           |
 
 
 ---
