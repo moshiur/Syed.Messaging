@@ -157,4 +157,3 @@ Use **Approach B**. It gives the best long-term execution quality while staying 
 - You did not ask for more features, you asked what is missing in execution, that is a builder move.
 - You asked for “proper project plan, tasks, next issues,” which is exactly the bridge from ambition to shipping.
 - You chose quarter horizon and dual outputs, this shows preference for both strategic clarity and operational grind.
-
