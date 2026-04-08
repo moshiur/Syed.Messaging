@@ -53,6 +53,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KafkaWorker", "samples\Kafk
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ServiceBusWorker", "samples\ServiceBusWorker\ServiceBusWorker.csproj", "{F54B5D92-7BF9-41F3-8F99-B452A30763AD}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Syed.Messaging.Kafka.Tests", "tests\Syed.Messaging.Kafka.Tests\Syed.Messaging.Kafka.Tests.csproj", "{7D3865C3-8098-4B83-8739-928A28FA6D21}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -327,6 +329,18 @@ Global
 		{F54B5D92-7BF9-41F3-8F99-B452A30763AD}.Release|x64.Build.0 = Release|Any CPU
 		{F54B5D92-7BF9-41F3-8F99-B452A30763AD}.Release|x86.ActiveCfg = Release|Any CPU
 		{F54B5D92-7BF9-41F3-8F99-B452A30763AD}.Release|x86.Build.0 = Release|Any CPU
+		{7D3865C3-8098-4B83-8739-928A28FA6D21}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7D3865C3-8098-4B83-8739-928A28FA6D21}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7D3865C3-8098-4B83-8739-928A28FA6D21}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{7D3865C3-8098-4B83-8739-928A28FA6D21}.Debug|x64.Build.0 = Debug|Any CPU
+		{7D3865C3-8098-4B83-8739-928A28FA6D21}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{7D3865C3-8098-4B83-8739-928A28FA6D21}.Debug|x86.Build.0 = Debug|Any CPU
+		{7D3865C3-8098-4B83-8739-928A28FA6D21}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7D3865C3-8098-4B83-8739-928A28FA6D21}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7D3865C3-8098-4B83-8739-928A28FA6D21}.Release|x64.ActiveCfg = Release|Any CPU
+		{7D3865C3-8098-4B83-8739-928A28FA6D21}.Release|x64.Build.0 = Release|Any CPU
+		{7D3865C3-8098-4B83-8739-928A28FA6D21}.Release|x86.ActiveCfg = Release|Any CPU
+		{7D3865C3-8098-4B83-8739-928A28FA6D21}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -354,5 +368,6 @@ Global
 		{3C7F9DE5-9875-469D-942C-71749AE8A0F9} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{7A948834-45B2-4907-936D-ED8B067B15F0} = {5D20AA90-6969-D8BD-9DCD-8634F4692FDA}
 		{F54B5D92-7BF9-41F3-8F99-B452A30763AD} = {5D20AA90-6969-D8BD-9DCD-8634F4692FDA}
+		{7D3865C3-8098-4B83-8739-928A28FA6D21} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal

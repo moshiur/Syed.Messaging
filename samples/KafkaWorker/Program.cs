@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Syed.Messaging;
@@ -12,6 +13,8 @@ builder.Services.AddMessaging(m =>
         kafka.BootstrapServers = "localhost:9092";
         kafka.ConsumerGroupId = "order-worker";
         kafka.TopicPrefix = "orders.";
+        kafka.Consumer.MaxConcurrentPartitions = 4;
+        kafka.Consumer.LogRebalanceEvents = true;
     });
 
     m.AddConsumer<OrderCreated, OrderCreatedHandler>(c =>
@@ -29,9 +32,21 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("Bootstrap");
-    logger.LogInformation("Publishing a test OrderCreated event via Kafka...");
+    logger.LogInformation("Publishing Kafka startup events with partition keys...");
     var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
-    await bus.PublishAsync("orders.created", new OrderCreated(Guid.NewGuid(), "customer-456"));
+
+    // Same customer uses same partition-key, so ordering for that customer is preserved.
+    await bus.PublishRawAsync(
+        "orders.created",
+        JsonSerializer.SerializeToUtf8Bytes(new OrderCreated(Guid.NewGuid(), "customer-456")),
+        nameof(OrderCreated),
+        new Dictionary<string, string> { ["partition-key"] = "customer-456" });
+
+    await bus.PublishRawAsync(
+        "orders.created",
+        JsonSerializer.SerializeToUtf8Bytes(new OrderCreated(Guid.NewGuid(), "customer-789")),
+        nameof(OrderCreated),
+        new Dictionary<string, string> { ["partition-key"] = "customer-789" });
 }
 
 await app.RunAsync();

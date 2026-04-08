@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Collections.Concurrent;
 using Confluent.Kafka;
 using Microsoft.Extensions.Logging;
 using Syed.Messaging;
@@ -77,68 +78,111 @@ public sealed class KafkaTransport : IMessageTransport, IDisposable
         {
             GroupId = _options.ConsumerGroupId,
             BootstrapServers = _options.BootstrapServers,
-            AutoOffsetReset = AutoOffsetReset.Earliest
+            AutoOffsetReset = _options.Consumer.AutoOffsetReset,
+            EnableAutoCommit = _options.Consumer.EnableAutoCommit,
+            EnableAutoOffsetStore = _options.Consumer.EnableAutoOffsetStore
         };
 
-        using var consumer = new ConsumerBuilder<string, byte[]>(config).Build();
+        if (_options.Consumer.MaxPollIntervalMs.HasValue)
+            config.MaxPollIntervalMs = _options.Consumer.MaxPollIntervalMs.Value;
+
+        if (_options.Consumer.SessionTimeoutMs.HasValue)
+            config.SessionTimeoutMs = _options.Consumer.SessionTimeoutMs.Value;
+
+        if (_options.Consumer.HeartbeatIntervalMs.HasValue)
+            config.HeartbeatIntervalMs = _options.Consumer.HeartbeatIntervalMs.Value;
+
+        if (_options.Consumer.UseStaticGroupMembership)
+        {
+            config.GroupInstanceId = string.IsNullOrWhiteSpace(_options.Consumer.GroupInstanceId)
+                ? $"{subscriptionName}-{Environment.MachineName}".ToLowerInvariant()
+                : _options.Consumer.GroupInstanceId;
+        }
+
+        config.Set("partition.assignment.strategy", GetPartitionAssignmentStrategy(_options.Consumer.PartitionAssignmentStrategy));
+
+        var revokedPartitions = new HashSet<TopicPartition>();
+        var partitionStateLock = new object();
+        var pendingAcks = new ConcurrentQueue<PendingAcknowledge>();
+        var dispatcher = new KafkaPartitionDispatcher<ConsumeResult<string, byte[]>>(
+            _options.Consumer.MaxConcurrentPartitions,
+            (partition, message, token) => ProcessPartitionMessageAsync(partition, message, handler, pendingAcks, dlqTopic, token),
+            ct);
+
+        var consumerBuilder = new ConsumerBuilder<string, byte[]>(config);
+
+        consumerBuilder
+            .SetPartitionsAssignedHandler((_, partitions) =>
+            {
+                lock (partitionStateLock)
+                {
+                    foreach (var partition in partitions)
+                    {
+                        revokedPartitions.Remove(partition);
+                    }
+                }
+
+                if (_options.Consumer.LogRebalanceEvents)
+                {
+                    _logger.LogInformation("Kafka partitions assigned for {Topic}: {Partitions}",
+                        topic, string.Join(", ", partitions.Select(p => $"{p.Topic}[{p.Partition.Value}]")));
+                }
+            })
+            .SetPartitionsRevokedHandler((consumer, partitions) =>
+            {
+                lock (partitionStateLock)
+                {
+                    foreach (var partition in partitions)
+                    {
+                        revokedPartitions.Add(partition.TopicPartition);
+                    }
+                }
+
+                TryCommitOnRevoke(consumer, partitions);
+                dispatcher.Revoke(partitions.Select(p => p.TopicPartition));
+
+                if (_options.Consumer.LogRebalanceEvents)
+                {
+                    _logger.LogInformation("Kafka partitions revoked for {Topic}: {Partitions}",
+                        topic, string.Join(", ", partitions.Select(p => $"{p.Topic}[{p.Partition.Value}]")));
+                }
+            });
+
+        using var consumer = consumerBuilder.Build();
         consumer.Subscribe(topic);
 
-        while (!ct.IsCancellationRequested)
+        try
         {
-            try
+            while (!ct.IsCancellationRequested)
             {
-                var cr = consumer.Consume(ct);
-                if (cr is null) continue;
-
-                var envelope = ToEnvelope(cr);
-                var stopwatch = Stopwatch.StartNew();
-                
-                MessagingMetrics.MessagesReceived.Add(1, new KeyValuePair<string, object?>("message_type", envelope.MessageType));
-
-                // Structured logging scope
-                using var logScope = _logger.BeginScope(new Dictionary<string, object?>
+                try
                 {
-                    ["MessageId"] = envelope.MessageId,
-                    ["CorrelationId"] = envelope.CorrelationId,
-                    ["MessageType"] = envelope.MessageType
-                });
+                    DrainPendingAcks(consumer, pendingAcks, revokedPartitions, partitionStateLock);
 
-                var result = await handler(envelope, ct);
-                stopwatch.Stop();
-                
-                MessagingMetrics.ProcessingDuration.Record(stopwatch.Elapsed.TotalMilliseconds, 
-                    new KeyValuePair<string, object?>("message_type", envelope.MessageType));
+                    var cr = consumer.Consume(TimeSpan.FromMilliseconds(200));
+                    if (cr is null) continue;
 
-                switch (result)
+                    if (!dispatcher.Enqueue(cr.TopicPartition, cr))
+                    {
+                        _logger.LogWarning("Unable to enqueue Kafka message for partition worker {Partition}.", cr.TopicPartition);
+                    }
+                }
+                catch (ConsumeException ex)
                 {
-                    case TransportAcknowledge.Ack:
-                        MessagingMetrics.MessagesProcessed.Add(1, new KeyValuePair<string, object?>("message_type", envelope.MessageType));
-                        consumer.Commit(cr);
-                        break;
-
-                    case TransportAcknowledge.Retry:
-                        MessagingMetrics.MessagesRetried.Add(1, new KeyValuePair<string, object?>("message_type", envelope.MessageType));
-                        await PublishToRetryTopicAsync(cr, envelope, ct);
-                        consumer.Commit(cr);
-                        break;
-
-                    case TransportAcknowledge.DeadLetter:
-                        MessagingMetrics.MessagesDeadLettered.Add(1, new KeyValuePair<string, object?>("message_type", envelope.MessageType));
-                        await _producer.ProduceAsync(dlqTopic, new Message<string, byte[]>
-                        {
-                            Key = cr.Message.Key,
-                            Value = cr.Message.Value,
-                            Headers = cr.Message.Headers
-                        }, ct);
-                        consumer.Commit(cr);
-                        break;
+                    MessagingMetrics.MessagesFailed.Add(1);
+                    _logger.LogError(ex, "Kafka consume error.");
                 }
             }
-            catch (ConsumeException ex)
-            {
-                MessagingMetrics.MessagesFailed.Add(1);
-                _logger.LogError(ex, "Kafka consume error.");
-            }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            _logger.LogDebug("Kafka consume loop cancelled for {Topic}.", topic);
+        }
+        finally
+        {
+            await dispatcher.CompleteAsync(TimeSpan.FromSeconds(10));
+            DrainPendingAcks(consumer, pendingAcks, revokedPartitions, partitionStateLock);
+            consumer.Close();
         }
     }
 
@@ -234,4 +278,134 @@ public sealed class KafkaTransport : IMessageTransport, IDisposable
         _producer.Flush();
         _producer.Dispose();
     }
+
+    private static string GetPartitionAssignmentStrategy(KafkaPartitionAssignmentStrategy strategy)
+        => strategy switch
+        {
+            KafkaPartitionAssignmentStrategy.Range => "range",
+            KafkaPartitionAssignmentStrategy.RoundRobin => "roundrobin",
+            _ => "cooperative-sticky"
+        };
+
+    private async Task ProcessPartitionMessageAsync(
+        TopicPartition partition,
+        ConsumeResult<string, byte[]> cr,
+        Func<IMessageEnvelope, CancellationToken, Task<TransportAcknowledge>> handler,
+        ConcurrentQueue<PendingAcknowledge> pendingAcks,
+        string dlqTopic,
+        CancellationToken ct)
+    {
+        var envelope = ToEnvelope(cr);
+        var stopwatch = Stopwatch.StartNew();
+
+        MessagingMetrics.MessagesReceived.Add(1, new KeyValuePair<string, object?>("message_type", envelope.MessageType));
+
+        using var logScope = _logger.BeginScope(new Dictionary<string, object?>
+        {
+            ["MessageId"] = envelope.MessageId,
+            ["CorrelationId"] = envelope.CorrelationId,
+            ["MessageType"] = envelope.MessageType,
+            ["Partition"] = $"{partition.Topic}[{partition.Partition.Value}]"
+        });
+
+        var result = await handler(envelope, ct);
+        stopwatch.Stop();
+
+        MessagingMetrics.ProcessingDuration.Record(stopwatch.Elapsed.TotalMilliseconds,
+            new KeyValuePair<string, object?>("message_type", envelope.MessageType));
+
+        switch (result)
+        {
+            case TransportAcknowledge.Ack:
+                MessagingMetrics.MessagesProcessed.Add(1, new KeyValuePair<string, object?>("message_type", envelope.MessageType));
+                pendingAcks.Enqueue(new PendingAcknowledge(cr, envelope.MessageId));
+                break;
+
+            case TransportAcknowledge.Retry:
+                MessagingMetrics.MessagesRetried.Add(1, new KeyValuePair<string, object?>("message_type", envelope.MessageType));
+                await PublishToRetryTopicAsync(cr, envelope, ct);
+                pendingAcks.Enqueue(new PendingAcknowledge(cr, envelope.MessageId));
+                break;
+
+            case TransportAcknowledge.DeadLetter:
+                MessagingMetrics.MessagesDeadLettered.Add(1, new KeyValuePair<string, object?>("message_type", envelope.MessageType));
+                await _producer.ProduceAsync(dlqTopic, new Message<string, byte[]>
+                {
+                    Key = cr.Message.Key,
+                    Value = cr.Message.Value,
+                    Headers = cr.Message.Headers
+                }, ct);
+                pendingAcks.Enqueue(new PendingAcknowledge(cr, envelope.MessageId));
+                break;
+        }
+    }
+
+    private void DrainPendingAcks(
+        IConsumer<string, byte[]> consumer,
+        ConcurrentQueue<PendingAcknowledge> pendingAcks,
+        HashSet<TopicPartition> revokedPartitions,
+        object partitionStateLock)
+    {
+        while (pendingAcks.TryDequeue(out var ack))
+        {
+            AcknowledgeProcessedMessage(consumer, ack.Result, ack.MessageId, revokedPartitions, partitionStateLock);
+        }
+    }
+
+    private void AcknowledgeProcessedMessage(
+        IConsumer<string, byte[]> consumer,
+        ConsumeResult<string, byte[]> result,
+        string? messageId,
+        HashSet<TopicPartition> revokedPartitions,
+        object partitionStateLock)
+    {
+        var isRevoked = false;
+        lock (partitionStateLock)
+        {
+            isRevoked = revokedPartitions.Contains(result.TopicPartition);
+        }
+
+        if (isRevoked)
+        {
+            _logger.LogWarning("Skipping offset commit for revoked partition {Partition} (MessageId: {MessageId}).",
+                result.TopicPartition, messageId);
+            return;
+        }
+
+        try
+        {
+            if (!_options.Consumer.EnableAutoOffsetStore)
+            {
+                consumer.StoreOffset(result);
+            }
+
+            if (!_options.Consumer.EnableAutoCommit)
+            {
+                consumer.Commit(result);
+            }
+        }
+        catch (KafkaException ex) when (ex.Error.Code == ErrorCode.Local_State)
+        {
+            _logger.LogWarning(ex, "Partition ownership changed before commit/store (MessageId: {MessageId}, Partition: {Partition}).",
+                messageId, result.TopicPartition);
+        }
+    }
+
+    private void TryCommitOnRevoke(IConsumer<string, byte[]> consumer, List<TopicPartitionOffset> partitions)
+    {
+        if (_options.Consumer.EnableAutoCommit)
+            return;
+
+        try
+        {
+            consumer.Commit();
+        }
+        catch (KafkaException ex) when (ex.Error.Code == ErrorCode.Local_State)
+        {
+            _logger.LogDebug(ex, "Commit-on-revoke skipped due to local state change for partitions: {Partitions}",
+                string.Join(", ", partitions.Select(p => $"{p.Topic}[{p.Partition.Value}]")));
+        }
+    }
+
+    private sealed record PendingAcknowledge(ConsumeResult<string, byte[]> Result, string? MessageId);
 }

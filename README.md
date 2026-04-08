@@ -182,6 +182,39 @@ Publisher ──routing key──► Main Exchange (Direct)
 
 ---
 
+## 🧵 Kafka Partition Strategy
+
+Kafka message ordering is partition-scoped, not topic-scoped. To preserve ordering for a business entity, publish a stable `partition-key`.
+
+```csharp
+await bus.PublishRawAsync(
+    "orders.created",
+    JsonSerializer.SerializeToUtf8Bytes(new OrderCreated(orderId, customerId)),
+    "OrderCreated",
+    new Dictionary<string, string> { ["partition-key"] = customerId });
+```
+
+### Practical guidance
+
+- Use **aggregate IDs** (`CustomerId`, `OrderId`, `TenantId`) as `partition-key`.
+- Same key means same partition, which gives deterministic in-order handling for that key.
+- Different keys can run in parallel with:
+
+```csharp
+services.AddMessaging(m =>
+{
+    m.UseKafka(k =>
+    {
+        k.Consumer.MaxConcurrentPartitions = 4;
+        k.Consumer.PartitionAssignmentStrategy = KafkaPartitionAssignmentStrategy.CooperativeSticky;
+    });
+});
+```
+
+This gives you the common production shape: strict ordering per entity, concurrency across entities.
+
+---
+
 ## 📤 Outbox Pattern
 
 Guarantee at-least-once delivery with transactional outbox:
