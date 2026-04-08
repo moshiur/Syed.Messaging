@@ -1,259 +1,279 @@
-# Syed.Messaging  
-### A lightweight, transport-agnostic .NET messaging framework with RabbitMQ, Kafka, Azure Service Bus and .NET Aspire integration.
+# Syed.Messaging
 
+### A transport-agnostic .NET messaging framework with built-in retry, DLQ, middleware, outbox, inbox, sagas, and observability.
+
+[![Build & Test](https://github.com/moshiur/Syed.Messaging/actions/workflows/publish.yml/badge.svg)](https://github.com/moshiur/Syed.Messaging/actions/workflows/publish.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-![Build](https://img.shields.io/badge/build-alpha-brightgreen.svg)
-![.NET](https://img.shields.io/badge/.NET-10.0-blue.svg)
-![Status](https://img.shields.io/badge/status-experimental-orange.svg)
-
-Syed.Messaging is a **minimal, clean, extensible messaging framework** for .NET applications.
-
-It gives you:
-
-- Transport-agnostic **abstractions**
-- **RabbitMQ**, **Kafka**, and **Azure Service Bus** transports
-- Retry, delayed retry (TTL / retry topics / scheduled messages) and **DLQ**
-- Simple `IMessageHandler<T>` consumer model
-- **EF Core Outbox** implementation (with type metadata)
-- Message versioning helpers (version header + utilities)
-- Distributed tracing hooks (via `ActivitySource` / OpenTelemetry-ready)
-- Per-consumer **concurrency configuration**
-- Early **Saga primitives** for orchestration
-- Optional .NET Aspire helper to wire RabbitMQ
-
-> ⚠️ This is still **alpha / experimental** – ideal as a learning platform or a base to evolve inside your organization.
+![.NET](https://img.shields.io/badge/.NET-10.0-purple.svg)
+![Version](https://img.shields.io/badge/version-1.2.0-green.svg)
 
 ---
 
-## 📁 Repository Structure
+## Why Syed.Messaging?
 
-```text
-/ src
-  / Syed.Messaging.Abstractions
-  / Syed.Messaging.Core
-  / Syed.Messaging.RabbitMq
-  / Syed.Messaging.Kafka
-  / Syed.Messaging.AzureServiceBus
-  / Syed.Messaging.Outbox.EfCore
-  / Syed.Messaging.Aspire
+Most .NET messaging libraries force you into a specific broker. Syed.Messaging gives you **one API** across RabbitMQ, Kafka, and Azure Service Bus — with production patterns built in, not bolted on.
 
-/ samples
-  / OrderWorker        # RabbitMQ-based worker sample
-
-README.md
+```csharp
+// Register everything in one fluent chain
+services.AddMessaging(builder =>
+{
+    builder.UseRabbitMq(o => o.ConnectionString = "amqp://localhost");
+    builder.AddMiddleware<TenantContextMiddleware>();
+    builder.AddConsumer<OrderCreated, OrderCreatedHandler>(o =>
+    {
+        o.Destination = "orders.created";
+        o.SubscriptionName = "orders.consumer";
+        o.RetryPolicy = new RetryPolicy { MaxRetries = 3, Backoff = RetryBackoff.Exponential };
+        o.MaxConcurrency = 4;
+    });
+});
 ```
 
 ---
 
-## ✨ Core Concepts
+## ✨ Features
 
-### Abstractions (in `Syed.Messaging.Abstractions`)
-
-```csharp
-public interface IMessageBus
-{
-    Task PublishAsync<T>(string destination, T message, CancellationToken ct = default);
-    Task SendAsync<T>(string destination, T message, CancellationToken ct = default);
-}
-
-public interface IMessageHandler<TMessage>
-{
-    Task HandleAsync(TMessage message, MessageContext context, CancellationToken ct);
-}
-
-public interface IMessageTransport
-{
-    Task PublishAsync(IMessageEnvelope envelope, string destination, CancellationToken ct);
-    Task SendAsync(IMessageEnvelope envelope, string destination, CancellationToken ct);
-    Task SubscribeAsync(
-        string subscriptionName,
-        string destination,
-        Func<IMessageEnvelope, CancellationToken, Task<TransportAcknowledge>> handler,
-        CancellationToken ct);
-}
-```
-
-### Consumers (in `Syed.Messaging.Core`)
-
-```csharp
-public sealed class ConsumerOptions<TMessage>
-{
-    public string Destination { get; set; } = default!;
-    public string SubscriptionName { get; set; } = default!;
-    public RetryPolicy RetryPolicy { get; set; } = new();
-    public int MaxConcurrency { get; set; } = 1;
-}
-```
-
-`GenericMessageConsumer<T>` uses these options and enforces `MaxConcurrency` via a semaphore around handler execution.
-
-### Retry Policy
-
-```csharp
-public sealed class RetryPolicy
-{
-    public int MaxRetries { get; init; } = 3;
-    public TimeSpan InitialDelay { get; init; } = TimeSpan.FromSeconds(5);
-    public RetryBackoff Backoff { get; init; } = RetryBackoff.Exponential;
-}
-```
-
-Transports interpret **Retry / DeadLetter** decisions from the generic consumer and route to retry queues/topics or DLQ.
+| Feature | Description |
+|:--|:--|
+| **Transport-agnostic** | RabbitMQ, Kafka, Azure Service Bus — same API |
+| **Typed consumers** | `IMessageHandler<T>` with automatic deserialization |
+| **Per-destination queues** | Each consumer gets its own queue — no cross-talk *(v1.2.0)* |
+| **Middleware pipeline** | `IMessageMiddleware` for cross-cutting concerns *(v1.1.0)* |
+| **Retry + DLQ** | Configurable retry policies with exponential backoff and dead-letter routing |
+| **Outbox pattern** | EF Core-based transactional outbox with raw mode support |
+| **Inbox deduplication** | Idempotent consumer pattern via EF Core |
+| **Saga orchestration** | State management, correlation, timeouts, distributed locking |
+| **RPC support** | Request/response messaging with `IRpcHandler<TReq, TRes>` |
+| **Observability** | OpenTelemetry spans + 7 Prometheus-ready metrics |
+| **Health checks** | ASP.NET Core health check integration per transport |
+| **SignalR bridge** | Route messaging events to SignalR hubs |
+| **Service discovery** | Kubernetes DNS, Consul, standard DNS |
+| **Message versioning** | `VersionedMessage<T>`, schema registry, compatibility rules |
 
 ---
 
-## 🚀 Quickstart (RabbitMQ + Worker Sample)
+## 📦 Packages
 
-### 1. Start RabbitMQ locally
+| Package | Description |
+|:--|:--|
+| `Syed.Messaging.Abstractions` | Core interfaces: `IMessageBus`, `IMessageHandler<T>`, `IMessageMiddleware`, `IMessageTransport` |
+| `Syed.Messaging.Core` | `GenericMessageConsumer<T>`, `RpcMessageConsumer`, `MessagingBuilder`, retry/DLQ logic |
+| `Syed.Messaging.RabbitMq` | RabbitMQ transport with topology builder, publisher confirms, per-destination queues |
+| `Syed.Messaging.Kafka` | Kafka transport with topic-based retry/DLQ |
+| `Syed.Messaging.AzureServiceBus` | Azure Service Bus transport with scheduled message retry |
+| `Syed.Messaging.Outbox.EfCore` | Transactional outbox with `OutboxPublisherService` and raw mode |
+| `Syed.Messaging.Inbox.EfCore` | Idempotent consumer inbox pattern |
+| `Syed.Messaging.Sagas` | Saga primitives: state, correlation, timeouts, locking |
+| `Syed.Messaging.Sagas.EfCore` | EF Core persistence for saga state and timeouts |
+| `Syed.Messaging.Sagas.Redis` | Redis distributed saga locking |
+| `Syed.Messaging.OpenTelemetry` | Activity spans for publish/consume and trace context propagation |
+| `Syed.Messaging.HealthChecks` | ASP.NET Core health check integration |
+| `Syed.Messaging.SignalR` | Bridge messaging events to SignalR hubs |
+| `Syed.Messaging.Aspire` | .NET Aspire integration helpers |
+| `Syed.BuildingBlocks` | Shared utilities and feature flags |
+
+### Installation
+
+Packages are published to [GitHub Packages](https://github.com/moshiur/Syed.Messaging/packages):
 
 ```bash
-docker run -d --hostname rabbit --name rabbit   -p 5672:5672 -p 15672:15672   rabbitmq:3-management
+dotnet add package Syed.Messaging.Core --version 1.2.0
+dotnet add package Syed.Messaging.RabbitMq --version 1.2.0
 ```
 
-### 2. Build the solution
+---
 
-From repo root:
+## 🚀 Quick Start
 
-```bash
-dotnet new sln -n Syed.Messaging
-dotnet sln add ./src/Syed.Messaging.Abstractions/Syed.Messaging.Abstractions.csproj
-dotnet sln add ./src.Syed.Messaging.Core/Syed.Messaging.Core.csproj
-dotnet sln add ./src/Syed.Messaging.RabbitMq/Syed.Messaging.RabbitMq.csproj
-dotnet sln add ./src/Syed.Messaging.Kafka/Syed.Messaging.Kafka.csproj
-dotnet sln add ./src/Syed.Messaging.AzureServiceBus/Syed.Messaging.AzureServiceBus.csproj
-dotnet sln add ./src/Syed.Messaging.Outbox.EfCore/Syed.Messaging.Outbox.EfCore.csproj
-dotnet sln add ./src/Syed.Messaging.Aspire/Syed.Messaging.Aspire.csproj
-dotnet sln add ./samples/OrderWorker/OrderWorker.csproj
-
-dotnet build
-```
-
-> Adjust paths if your layout differs.
-
-### 3. Run the sample worker
-
-```bash
-cd samples/OrderWorker
-dotnet run
-```
-
-The worker will:
-
-- connect to RabbitMQ
-- declare exchanges/queues (main + retry + DLQ)
-- consume `OrderCreated` messages from `orders.created`
-
-### 4. Publish a test message
-
-You can hit RabbitMQ with any client, or (for dev) you can temporarily tweak the sample worker to send a test message on startup.
-
-Example snippet to drop into `Program.cs` if you want auto-fire:
+### 1. Define a message and handler
 
 ```csharp
-using (var scope = app.Services.CreateScope())
+[MessageType("orders.created")]
+public record OrderCreated(Guid OrderId, string CustomerId);
+
+public class OrderCreatedHandler : IMessageHandler<OrderCreated>
 {
-    var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
-    await bus.PublishAsync("orders.created", new OrderCreated(Guid.NewGuid(), "customer-123"));
+    public async Task HandleAsync(OrderCreated message, MessageContext ctx, CancellationToken ct)
+    {
+        Console.WriteLine($"Processing order {message.OrderId} for {message.CustomerId}");
+    }
 }
 ```
 
-You should see logs like:
+### 2. Wire up in `Program.cs`
 
-```text
-Worker received OrderCreated event: OrderId=..., CustomerId=customer-123, Retry=0
+```csharp
+var builder = Host.CreateDefaultBuilder(args);
+builder.ConfigureServices(services =>
+{
+    services.AddMessaging(m =>
+    {
+        m.UseRabbitMq(o =>
+        {
+            o.ConnectionString = "amqp://guest:guest@localhost:5672";
+            o.MainExchangeName = "myapp.events";
+        });
+
+        m.AddConsumer<OrderCreated, OrderCreatedHandler>(o =>
+        {
+            o.Destination = "orders.created";
+            o.SubscriptionName = "orders.consumer";
+        });
+    });
+});
+
+await builder.Build().RunAsync();
+```
+
+### 3. Publish messages
+
+```csharp
+var bus = serviceProvider.GetRequiredService<IMessageBus>();
+await bus.PublishAsync("orders.created", new OrderCreated(Guid.NewGuid(), "cust-123"));
 ```
 
 ---
 
-## 🧩 Transports Overview
+## 🔌 Middleware Pipeline
 
-### 🐇 RabbitMQ (`Syed.Messaging.RabbitMq`)
+Middleware runs before every handler — ideal for tenant context, logging, auth propagation:
 
-- Exchange & queue topology provisioned by `RabbitTopologyBuilder`
-- Retry queue (TTL) loops back to main exchange
-- DLQ queue receives poisoned messages
-- Uses headers: `x-retry-count`, `message-id`, `correlation-id`
+```csharp
+public class TenantContextMiddleware : IMessageMiddleware
+{
+    public async Task InvokeAsync(IMessageEnvelope envelope, IServiceProvider sp, Func<Task> next)
+    {
+        if (envelope.Headers.TryGetValue("tenant-id", out var tenantId))
+        {
+            var ctx = sp.GetRequiredService<ITenantContext>();
+            ctx.SetTenant(tenantId);
+        }
+        await next(); // handler runs with tenant context set
+    }
+}
 
-### 🧵 Kafka (`Syed.Messaging.Kafka`) — Minimal Implementation
+// Register
+services.AddMessaging(m => m.AddMiddleware<TenantContextMiddleware>());
+```
 
-- Topic-based publishing and subscribing using Confluent.Kafka
-- Simple retry via separate `-retry` topic
-- DLQ via `-dlq` topic
-- This is intentionally minimal; extend partitions, consumer group settings as needed.
-
-### ☁ Azure Service Bus (`Syed.Messaging.AzureServiceBus`) — Minimal Implementation
-
-- Queue / topic publishing and subscribing
-- Retry by sending scheduled messages (delayed)
-- DLQ via Service Bus’ native DLQ
-- Skeleton for you to tune per your environment (lock duration, prefetch, etc.).
-
----
-
-## 📦 Outbox, Versioning, Tracing, Sagas
-
-### ✅ Outbox (EF Core)
-
-- `OutboxMessage` holds `Destination`, `MessageType`, `Payload`, and timestamps.
-- `EfCoreOutboxStore<TContext>` works with your DbContext
-- `OutboxPublisherService` loads pending messages and publishes using `IMessageBus`
-
-Current strategy:
-
-- `MessageType` stores the CLR type name
-- A small helper resolves `Type.GetType(message.MessageType)` and uses the main serializer
-
-You will likely want to:
-
-- constrain assemblies for security
-- plug a custom type-mapping strategy
-
-### 🧬 Message Versioning Helpers
-
-- Version header: `"message-version"`
-- Helper methods in `MessageVersioning` to read/write versions and to default on missing versions.
-
-### 📡 Distributed Tracing
-
-- Uses `System.Diagnostics.ActivitySource` in core to create spans for:
-  - publish/send calls
-  - message consumption
-- You can hook this into OpenTelemetry by registering `ActivitySource` with your OTEL pipeline.
-
-### 🔁 Concurrency per Consumer
-
-- `ConsumerOptions<T>.MaxConcurrency` controls how many handler invocations can run at once.  
-- GenericMessageConsumer wraps handler in a `SemaphoreSlim` to enforce this.
-
-### ♻ Saga Primitives (very early)
-
-- `ISagaState` – base for saga state objects (`Id`, `Version`, etc.)
-- `ISagaHandler<TSagaState, TMessage>` – pattern for handling messages in the context of a saga state
-- No persistence or orchestration engine is included yet — these are building blocks.
+Middlewares execute in registration order (first registered = outermost wrapper).
 
 ---
 
-## 🧭 Roadmap
+## 🐇 RabbitMQ Transport
 
-### Short-term
-- Flesh out Kafka and Azure Service Bus transports (configuration, retries)
-- Stronger integration tests (dockerized brokers)
-- Better Outbox configuration & examples
+Per-destination queue routing *(v1.2.0)*:
 
-### Medium-term
-- Built-in OpenTelemetry instrumentation package
-- Generic saga orchestration hosted service
-- Polished samples for each transport (RabbitMQ, Kafka, Azure Service Bus)
+```
+Publisher ──routing key──► Main Exchange (Direct)
+                              │
+                    ┌─────────┼──────────┐
+                    ▼         ▼          ▼
+            orders.queue  billing.queue  notifications.queue
+                    │
+                    ▼ (on failure)
+              Retry Exchange ──► Retry Queue (TTL) ──DLX──► Main Exchange
+                                                            (preserves routing key)
+```
+
+- Each `AddConsumer<T>()` auto-declares its own queue bound by destination
+- Retry queue preserves original routing key on DLX — messages return to the correct queue
+- DLQ captures poison messages with diagnostic headers (`x-poison-*`)
+
+---
+
+## 📤 Outbox Pattern
+
+Guarantee at-least-once delivery with transactional outbox:
+
+```csharp
+// Save to DB + queue atomically
+var outbox = scope.ServiceProvider.GetRequiredService<IOutboxStore>();
+await outbox.SaveAsync(new OutboxMessage
+{
+    Destination = "orders.created",
+    MessageType = "OrderCreated",
+    Payload = JsonSerializer.SerializeToUtf8Bytes(order)
+});
+await dbContext.SaveChangesAsync(); // single transaction
+
+// OutboxPublisherService polls and publishes in background
+services.AddHostedService<OutboxPublisherService>();
+```
+
+Supports **raw mode** for anonymous payloads (no CLR type resolution needed).
+
+---
+
+## ♻ Saga Orchestration
+
+Long-running workflows with state management and distributed locking:
+
+```csharp
+public class OrderSaga : ISagaHandler<OrderSagaState, OrderCreated>
+{
+    public async Task HandleAsync(OrderSagaState state, OrderCreated msg, ISagaContext ctx)
+    {
+        state.OrderId = msg.OrderId;
+        await ctx.SendAsync("inventory.reserve", new ReserveInventory(msg.OrderId));
+        ctx.SetTimeout(TimeSpan.FromMinutes(5), "InventoryTimeout");
+    }
+}
+```
+
+Persistence: EF Core or in-memory. Locking: Redis, in-memory, or no-op.
+
+---
+
+## 📊 Observability
+
+```csharp
+// OpenTelemetry integration
+services.AddOpenTelemetry()
+    .WithTracing(b => b.AddSource("Syed.Messaging"));
+
+// Built-in metrics (System.Diagnostics.Metrics)
+// - messages_published, messages_consumed, messages_retried
+// - messages_dead_lettered, handler_duration, handler_errors
+// - active_consumers
+```
+
+---
+
+## 🧪 Testing
+
+76 tests across 5 test projects:
+
+```bash
+dotnet test --configuration Release
+```
+
+---
+
+## 📋 Changelog
+
+### v1.2.0 — Per-Destination Queue Routing
+- `SubscribeAsync` auto-declares per-destination queues bound by routing key
+- Each consumer only receives its own messages — fixes shared-queue poison issue
+- Retry/DLQ routing preserves original destination
+- `MainQueueName` deprecated
+
+### v1.1.0 — Middleware Pipeline
+- `IMessageMiddleware` interface for pre-handler cross-cutting concerns
+- Integrated into `GenericMessageConsumer` and `RpcMessageConsumer`
+- `MessagingBuilder.AddMiddleware<T>()` for fluent registration
 
 ---
 
 ## 🤝 Contributing
 
-PRs, issues, and design discussions are welcome.  
+PRs, issues, and design discussions are welcome.
 This is a platform-style library — architectural feedback is especially valuable.
+
+See [ROADMAP.md](ROADMAP.md) for planned features and current status.
 
 ---
 
 ## 📝 License
 
-MIT.
+[MIT](LICENSE)
