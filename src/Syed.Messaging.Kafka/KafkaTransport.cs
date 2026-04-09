@@ -328,7 +328,14 @@ public sealed class KafkaTransport : IMessageTransport, IDisposable
                 break;
 
             case TransportAcknowledge.DeadLetter:
-                MessagingMetrics.MessagesDeadLettered.Add(1, new KeyValuePair<string, object?>("message_type", envelope.MessageType));
+                var reason = envelope.Headers.TryGetValue("x-poison-reason", out var poisonReason)
+                    ? poisonReason
+                    : MessagingMetrics.DlqReasonTransportReject;
+                MessagingMetrics.MessagesDeadLettered.Add(1, MessagingMetrics.BuildDeadLetterTags(
+                    transport: "kafka",
+                    destination: cr.Topic,
+                    messageType: envelope.MessageType,
+                    reason: reason));
                 await _producer.ProduceAsync(dlqTopic, new Message<string, byte[]>
                 {
                     Key = cr.Message.Key,

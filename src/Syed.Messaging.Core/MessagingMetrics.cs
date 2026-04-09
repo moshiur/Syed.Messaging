@@ -1,4 +1,5 @@
 using System.Diagnostics.Metrics;
+using System.Text.RegularExpressions;
 
 namespace Syed.Messaging;
 
@@ -8,6 +9,10 @@ namespace Syed.Messaging;
 public static class MessagingMetrics
 {
     public const string MeterName = "Syed.Messaging";
+    private static readonly Regex GuidPattern = new(
+        @"\b[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[1-5][a-fA-F0-9]{3}-[89abAB][a-fA-F0-9]{3}-[a-fA-F0-9]{12}\b",
+        RegexOptions.Compiled);
+    private static readonly Regex LongNumericSegmentPattern = new(@"\b\d{7,}\b", RegexOptions.Compiled);
 
     private static readonly Meter Meter = new(MeterName, "1.0.0");
 
@@ -75,4 +80,60 @@ public static class MessagingMetrics
         "messaging.messages.processing_duration",
         unit: "ms",
         description: "Message processing duration in milliseconds");
+
+    public const string DlqReasonDeserializationFailure = "deserialization_failure";
+    public const string DlqReasonMaxRetryExhausted = "max_retry_exhausted";
+    public const string DlqReasonHandlerException = "handler_exception";
+    public const string DlqReasonSchemaValidationFailed = "schema_validation_failed";
+    public const string DlqReasonTransportReject = "transport_reject";
+
+    public static KeyValuePair<string, object?>[] BuildDeadLetterTags(
+        string transport,
+        string destination,
+        string messageType,
+        string? reason)
+    {
+        return
+        [
+            new KeyValuePair<string, object?>("transport", transport.ToLowerInvariant()),
+            new KeyValuePair<string, object?>("destination", NormalizeDestination(destination)),
+            new KeyValuePair<string, object?>("message_type", messageType),
+            new KeyValuePair<string, object?>("reason", NormalizeDeadLetterReason(reason))
+        ];
+    }
+
+    public static string NormalizeDeadLetterReason(string? reason)
+    {
+        if (string.IsNullOrWhiteSpace(reason))
+            return DlqReasonTransportReject;
+
+        var normalized = reason.Trim().ToLowerInvariant().Replace(' ', '_');
+
+        return normalized switch
+        {
+            "deserialization_failure" => DlqReasonDeserializationFailure,
+            "retry_exhausted" => DlqReasonMaxRetryExhausted,
+            "max_retry_exhausted" => DlqReasonMaxRetryExhausted,
+            "handler_exception" => DlqReasonHandlerException,
+            "schema_validation_failed" => DlqReasonSchemaValidationFailed,
+            "transport_reject" => DlqReasonTransportReject,
+            _ => DlqReasonTransportReject
+        };
+    }
+
+    public static string NormalizeDestination(string destination)
+    {
+        if (string.IsNullOrWhiteSpace(destination))
+            return "unknown";
+
+        var normalized = destination.Trim().ToLowerInvariant();
+        normalized = GuidPattern.Replace(normalized, "{id}");
+        normalized = LongNumericSegmentPattern.Replace(normalized, "{n}");
+
+        const int maxLength = 120;
+        if (normalized.Length > maxLength)
+            normalized = normalized[..maxLength];
+
+        return normalized;
+    }
 }

@@ -121,7 +121,14 @@ public sealed class ServiceBusTransport : IMessageTransport, IAsyncDisposable
                         break;
 
                     case TransportAcknowledge.DeadLetter:
-                        MessagingMetrics.MessagesDeadLettered.Add(1, new KeyValuePair<string, object?>("message_type", envelope.MessageType));
+                        var reason = envelope.Headers.TryGetValue("x-poison-reason", out var poisonReason)
+                            ? poisonReason
+                            : MessagingMetrics.DlqReasonMaxRetryExhausted;
+                        MessagingMetrics.MessagesDeadLettered.Add(1, MessagingMetrics.BuildDeadLetterTags(
+                            transport: "azureservicebus",
+                            destination: args.EntityPath,
+                            messageType: envelope.MessageType,
+                            reason: reason));
                         await args.DeadLetterMessageAsync(args.Message, "MaxRetriesExceeded", "Message exceeded retry limit", ct);
                         break;
                 }

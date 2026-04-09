@@ -334,6 +334,15 @@ public sealed class RabbitMqTransport : IMessageTransport, IDisposable
 
             case TransportAcknowledge.DeadLetter:
             {
+                var reason = envelope.Headers.TryGetValue("x-poison-reason", out var poisonReason)
+                    ? poisonReason
+                    : MessagingMetrics.DlqReasonTransportReject;
+                MessagingMetrics.MessagesDeadLettered.Add(1, MessagingMetrics.BuildDeadLetterTags(
+                    transport: "rabbitmq",
+                    destination: ea.RoutingKey,
+                    messageType: envelope.MessageType,
+                    reason: reason));
+
                 var props = _channel.CreateBasicProperties();
                 props.Persistent = true;
                 props.Headers = ea.BasicProperties.Headers ?? new Dictionary<string, object>();

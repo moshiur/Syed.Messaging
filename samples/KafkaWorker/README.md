@@ -25,3 +25,29 @@ dotnet run --project samples/KafkaWorker/KafkaWorker.csproj
 - Events from different partition keys can be processed concurrently.
 - Rebalance/partition events are logged when `LogRebalanceEvents = true`.
 
+## Metrics export wiring (Prometheus-first)
+
+Syed.Messaging emits metrics from the `Syed.Messaging` meter. You can inspect locally first:
+
+```bash
+dotnet-counters monitor --counters Syed.Messaging --process-id <pid>
+```
+
+For Prometheus scraping in a worker process, add `OpenTelemetry.Exporter.Prometheus.HttpListener` and wire metrics:
+
+```csharp
+// Program.cs sketch
+using OpenTelemetry.Metrics;
+
+builder.Services.AddOpenTelemetry()
+    .WithMetrics(metrics =>
+    {
+        metrics.AddMeter("Syed.Messaging");
+        metrics.AddPrometheusHttpListener(options => options.UriPrefixes = new[] { "http://localhost:9464/" });
+    });
+```
+
+Then scrape `http://localhost:9464/metrics` and apply queries from:
+
+- `docs/observability/dlq-dashboard.md`
+

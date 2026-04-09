@@ -152,14 +152,14 @@ Increase operational robustness.
 - ✅ Per-partition ordering with bounded cross-partition concurrency (`MaxConcurrentPartitions`)
 - ✅ Kafka partition dispatcher tests (ordering, parallelism, revoke behavior)
 - ✅ Kafka sample + docs for partition-key strategy and scaling behavior
-- Error queues with metrics dashboards
+- ✅ Error queues with metrics dashboards (standard DLQ tags + Prometheus dashboard/alerts guide)
 - Message throughput autoscaling helpers
 - Aspire component for messaging (dashboard integration)
 - Deployment recipes for Kubernetes
 
 ### Next Concrete Issue
 
-- Add end-to-end Kafka integration tests for consumer group rebalance across two worker instances (join/leave/reassign with offset continuity assertions).
+- Add autoscaling helper guidance and reference implementation based on retry and DLQ pressure thresholds.
 
 ---
 
