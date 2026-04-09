@@ -16,6 +16,28 @@ jobs:
   build-and-test:
     name: Build & Test
     runs-on: ubuntu-latest
+    services:
+      zookeeper:
+        image: confluentinc/cp-zookeeper:7.6.1
+        ports:
+          - 2181:2181
+        env:
+          ZOOKEEPER_CLIENT_PORT: 2181
+          ZOOKEEPER_TICK_TIME: 2000
+      kafka:
+        image: confluentinc/cp-kafka:7.6.1
+        ports:
+          - 9092:9092
+        env:
+          KAFKA_BROKER_ID: 1
+          KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+          KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+          KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    env:
+      KAFKA_BOOTSTRAP_SERVERS: localhost:9092
     steps:
       - uses: actions/checkout@v4
 
@@ -29,6 +51,19 @@ jobs:
 
       - name: Build
         run: dotnet build --configuration ${{ env.CONFIGURATION }} --no-restore
+
+      - name: Wait for Kafka
+        run: |
+          for i in {1..30}; do
+            if nc -z localhost 9092; then
+              echo "Kafka is ready"
+              exit 0
+            fi
+            echo "Waiting for Kafka..."
+            sleep 2
+          done
+          echo "Kafka did not become ready in time"
+          exit 1
 
       - name: Test
         run: dotnet test --configuration ${{ env.CONFIGURATION }} --no-build --verbosity normal
