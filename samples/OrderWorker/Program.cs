@@ -11,7 +11,6 @@ builder.Services.AddMessaging(m =>
     {
         rabbit.ConnectionString = "amqp://guest:guest@localhost:5672/";
         rabbit.MainExchangeName = "orders.exchange";
-        rabbit.MainQueueName = "orders.queue";
         rabbit.RetryQueueName = "orders.retry.queue";
         rabbit.DeadLetterQueueName = "orders.dlq.queue";
         rabbit.RoutingKey = "orders.created";

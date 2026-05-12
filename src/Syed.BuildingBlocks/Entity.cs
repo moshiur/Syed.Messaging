@@ -8,8 +8,8 @@ namespace Syed.BuildingBlocks
         public bool IsDeleted { get; protected set; }
         public DateTime? DeletedAtUtc { get; protected set; }
 
-        private List<IDomainEvent> _domainEvents;
-        public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents?.AsReadOnly();
+        private readonly List<IDomainEvent> _domainEvents = new();
+        public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
 
         protected Entity()
         {
@@ -31,18 +31,17 @@ namespace Syed.BuildingBlocks
 
         public void AddDomainEvent(IDomainEvent domainEvent)
         {
-            _domainEvents = _domainEvents ?? new List<IDomainEvent>();
             _domainEvents.Add(domainEvent);
         }
 
         public void RemoveDomainEvent(IDomainEvent domainEvent)
         {
-            _domainEvents?.Remove(domainEvent);
+            _domainEvents.Remove(domainEvent);
         }
 
         public void ClearDomainEvents()
         {
-            _domainEvents?.Clear();
+            _domainEvents.Clear();
         }
 
         public override bool Equals(object? obj)
@@ -67,7 +66,7 @@ namespace Syed.BuildingBlocks
             return (GetType().ToString() + Id).GetHashCode();
         }
 
-        public static bool operator ==(Entity left, Entity right)
+        public static bool operator ==(Entity? left, Entity? right)
         {
             if (ReferenceEquals(left, null) && ReferenceEquals(right, null))
                 return true;
@@ -78,7 +77,7 @@ namespace Syed.BuildingBlocks
             return left.Equals(right);
         }
 
-        public static bool operator !=(Entity left, Entity right)
+        public static bool operator !=(Entity? left, Entity? right)
         {
             return !(left == right);
         }

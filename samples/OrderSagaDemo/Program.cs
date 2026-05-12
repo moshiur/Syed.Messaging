@@ -26,7 +26,6 @@ builder.Services
         {
             r.ConnectionString = "amqp://guest:guest@localhost:5672/";
             r.MainExchangeName = "orders.exchange";
-            r.MainQueueName = "orders.saga.queue";
             r.RetryQueueName = "orders.saga.retry.queue";
             r.DeadLetterQueueName = "orders.saga.dlq.queue";
             r.RoutingKey = "orders.saga";
@@ -75,7 +74,7 @@ using (var scope = app.Services.CreateScope())
     await db.Database.EnsureCreatedAsync();
     
     var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("Bootstrap");
-    logger.LogInformation("✅ Saga database initialized (SQLite: sagas.db)");
+    logger.LogInformation("Saga database initialized (SQLite: sagas.db)");
     
     var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
     var orderId = Guid.NewGuid();

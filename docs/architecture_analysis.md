@@ -7,8 +7,8 @@
 ### Key Components
 
 *   **Abstractions (`Syed.Messaging.Abstractions`)**: Defines the core contracts (`IMessageBus`, `IMessageHandler`, `IMessageEnvelope`, `IMessageTypeRegistry`). This layer has zero dependencies on concrete implementations.
-*   **Core (`Syed.Messaging.Core`)**: Provides the default implementations and plumbing (`MessageBus`, `MessageTypeRegistry`, `SystemTextJsonSerializer`).
-*   **Transport (`Syed.Messaging.RabbitMq`)**: Implements `IMessageTransport` for RabbitMQ.
+*   **Core (`Syed.Messaging.Core`)**: Provides shared runtime plumbing (`GenericMessageConsumer`, `MessageTypeRegistry`, `SystemTextJsonSerializer`, retry, metrics, and diagnostics).
+*   **Transports**: RabbitMQ, Kafka, and Azure Service Bus implement `IMessageTransport` plus transport-specific `IMessageBus` adapters.
 *   **Outbox (`Syed.Messaging.Outbox.EfCore`)**: Provides reliable message publishing using the Transactional Outbox pattern with EF Core.
 *   **Sagas (`Syed.Messaging.Sagas`)**: A lightweight saga orchestration engine.
     *   **Persistence**: `Syed.Messaging.Sagas.EfCore` (Sqlite/SQL Server via EF Core).
@@ -39,8 +39,8 @@ The framework is designed to be extensible via Dependency Injection.
 ## 4. Gaps & Limitations
 
 1.  **Transport Features**:
-    *   RabbitMQ implementation is basic. No support for publisher confirms or advanced topology configuration (e.g. topic exchanges vs fanout).
-    *   No Dead Letter Queue (DLQ) automated management or replay mechanism.
+    *   RabbitMQ supports publisher confirms, retry, and DLQ routing, but advanced topology configuration (e.g. topic exchanges vs fanout) is still limited.
+    *   DLQ management exists for RabbitMQ; cross-transport DLQ replay tooling is still a gap.
 2.  **Saga Features**:
     *   **Replay/Compensation**: No built-in support for compensating transactions (undoing steps) if a saga fails.
     *   **Visualizer**: No UI to visualize the saga flow or current state of running sagas.
@@ -48,15 +48,14 @@ The framework is designed to be extensible via Dependency Injection.
 3.  **Outbox**:
     *   The "relay" is likely a background worker polling the DB. This can be inefficient at scale (busy wait or high latency). Needs support for CDC (Change Data Capture) or immediate triggers.
 4.  **Error Handling**:
-    *   Retry policies are rudimentary. Needs a more robust solution like Polly integration for exponential backoff at the handler level.
-    *   "Poison message" handling is manual.
+    *   Transport retries and poison-message classification exist; the next step is tighter consistency across transports and replay tooling.
 
 ## 5. Future Roadmap
 
 ### Short Term (v1.1)
-*   **[ ] Transport Hardening**: Implement RabbitMQ Publisher Confirms and better connection recovery.
-*   **[ ] Polly Integration**: Add `AddResiliencePipeline` support to message handlers.
-*   **[ ] Inbox Pattern**: Implement Idempotent Consumer (Inbox) pattern to deduplicate messages.
+*   **[x] Transport Hardening**: Implement RabbitMQ Publisher Confirms.
+*   **[x] Polly Integration**: Add resilience pipeline support to message handlers.
+*   **[x] Inbox Pattern**: Implement Idempotent Consumer (Inbox) pattern to deduplicate messages.
 
 ### Medium Term (v1.2)
 *   **[ ] Azure Service Bus Transport**: Add support for ASB.
