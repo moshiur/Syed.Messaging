@@ -19,7 +19,7 @@ public class GenericMessageConsumerTests
     private readonly Mock<IInboxStore> _inboxStoreMock;
     private readonly Mock<IMessageHandler<TestMessage>> _handlerMock;
 
-    public class TestMessage { public string Data { get; set; } }
+    public class TestMessage { public string Data { get; set; } = string.Empty; }
 
     public GenericMessageConsumerTests()
     {
@@ -44,7 +44,7 @@ public class GenericMessageConsumerTests
         // Setup Service Provider to return IInboxStore (optional)
         // By default returning null unless specific test sets it up
         _serviceProviderMock.Setup(x => x.GetService(typeof(IInboxStore)))
-            .Returns(null); // Default no inbox
+            .Returns((object?)null); // Default no inbox
 
         // Default: no middleware registered
         _serviceProviderMock.Setup(x => x.GetService(typeof(IEnumerable<IMessageMiddleware>)))
@@ -289,9 +289,9 @@ public static class LoggerMockExtensions
         logger.Verify(x => x.Log(
             level,
             It.IsAny<EventId>(),
-            It.Is<It.IsAnyType>((v, t) => v.ToString().Contains(messageContains)),
+            It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains(messageContains)),
             It.IsAny<Exception>(),
-            (Func<It.IsAnyType, Exception, string>)It.IsAny<object>()), 
+            (Func<It.IsAnyType, Exception?, string>)It.IsAny<object>()), 
             Times.AtLeastOnce,
             $"Expected log message containing '{messageContains}'");
     }

@@ -35,8 +35,7 @@ public class RabbitMqTransportTests
         _options = new RabbitMqOptions
         {
             ConnectionString = "amqp://localhost",
-            MainExchangeName = "test-exchange",
-            MainQueueName = "test-queue"
+            MainExchangeName = "test-exchange"
         };
 
         // Setup mock chain
