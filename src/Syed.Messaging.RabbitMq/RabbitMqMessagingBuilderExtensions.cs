@@ -17,83 +17,25 @@ public static class RabbitMqMessagingBuilderExtensions
 
         services.AddSingleton(options);
         services.TryAddSingleton<IMessageTransport, RabbitMqTransport>();
-        services.TryAddSingleton<IMessageBus, RabbitMqBus>();
+        services.TryAddSingleton<IMessageBus, TransportMessageBus>();
 
         return builder;
     }
 }
 
-public sealed class RabbitMqBus : IMessageBus
+public sealed class RabbitMqBus : TransportMessageBus
 {
-    private readonly IMessageTransport _transport;
-    private readonly ISerializer _serializer;
-
     public RabbitMqBus(IMessageTransport transport, ISerializer serializer)
+        : this(transport, serializer, new MessageTypeRegistry())
     {
-        _transport = transport;
-        _serializer = serializer;
     }
 
-    public Task PublishAsync<T>(string destination, T message, CancellationToken ct = default)
+    public RabbitMqBus(
+        IMessageTransport transport,
+        ISerializer serializer,
+        IMessageTypeRegistry messageTypeRegistry)
+        : base(transport, serializer, messageTypeRegistry)
     {
-        var headers = new Dictionary<string, string>
-        {
-            ["message-id"] = Guid.NewGuid().ToString(),
-            ["correlation-id"] = Guid.NewGuid().ToString()
-        };
-
-        var envelope = new MessageEnvelope
-        {
-            MessageType = typeof(T).FullName ?? typeof(T).Name,
-            MessageId = headers["message-id"],
-            CorrelationId = headers["correlation-id"],
-            Headers = headers,
-            Body = _serializer.Serialize(message)
-        };
-
-        return _transport.PublishAsync(envelope, destination, ct);
-    }
-
-    public Task SendAsync<T>(string destination, T message, CancellationToken ct = default)
-        => PublishAsync(destination, message, ct);
-
-    public Task PublishRawAsync(string destination, byte[] payload, string? messageType = null, Dictionary<string, string>? headers = null, CancellationToken ct = default)
-    {
-        var msgId = Guid.NewGuid().ToString();
-        var allHeaders = headers ?? new Dictionary<string, string>();
-        allHeaders["message-id"] = msgId;
-        
-        var envelope = new MessageEnvelope
-        {
-            MessageType = messageType ?? "raw",
-            MessageId = msgId,
-            Headers = allHeaders,
-            Body = payload
-        };
-
-        return _transport.PublishAsync(envelope, destination, ct);
-    }
-
-    public async Task<TResponse> RequestAsync<TRequest, TResponse>(string destination, TRequest message, CancellationToken ct = default)
-    {
-        var correlationId = Guid.NewGuid().ToString();
-        var headers = new Dictionary<string, string>
-        {
-            ["message-id"] = Guid.NewGuid().ToString(),
-            ["correlation-id"] = correlationId
-        };
-
-        var envelope = new MessageEnvelope
-        {
-            MessageType = typeof(TRequest).FullName ?? typeof(TRequest).Name,
-            MessageId = headers["message-id"],
-            CorrelationId = correlationId,
-            Headers = headers,
-            Body = _serializer.Serialize(message)
-        };
-
-        var responseEnvelope = await _transport.RequestAsync(envelope, destination, ct);
-        return _serializer.Deserialize<TResponse>(responseEnvelope.Body);
     }
 }
 
