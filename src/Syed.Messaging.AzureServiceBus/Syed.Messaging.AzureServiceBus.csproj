@@ -14,7 +14,7 @@
     <ProjectReference Include="..\Syed.Messaging.Core\Syed.Messaging.Core.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Azure.Messaging.ServiceBus" Version="7.17.0" />
+    <PackageReference Include="Azure.Messaging.ServiceBus" Version="7.20.1" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.8" />
   </ItemGroup>
 </Project>
