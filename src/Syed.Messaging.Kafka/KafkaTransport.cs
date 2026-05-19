@@ -231,14 +231,20 @@ public sealed class KafkaTransport : IMessageTransport, IDisposable
 
     private Headers BuildHeaders(IMessageEnvelope envelope)
     {
-        var headers = new Headers();
-        headers.Add("message-type", System.Text.Encoding.UTF8.GetBytes(envelope.MessageType));
-        if (envelope.MessageId is not null)
-            headers.Add("message-id", System.Text.Encoding.UTF8.GetBytes(envelope.MessageId));
-        if (envelope.CorrelationId is not null)
-            headers.Add("correlation-id", System.Text.Encoding.UTF8.GetBytes(envelope.CorrelationId));
+        var values = new Dictionary<string, string>(envelope.Headers)
+        {
+            ["message-type"] = envelope.MessageType
+        };
 
-        foreach (var kv in envelope.Headers)
+        if (!string.IsNullOrWhiteSpace(envelope.MessageVersion))
+            values["message-version"] = envelope.MessageVersion;
+        if (envelope.MessageId is not null)
+            values["message-id"] = envelope.MessageId;
+        if (envelope.CorrelationId is not null)
+            values["correlation-id"] = envelope.CorrelationId;
+
+        var headers = new Headers();
+        foreach (var kv in values)
         {
             headers.Add(kv.Key, System.Text.Encoding.UTF8.GetBytes(kv.Value));
         }
