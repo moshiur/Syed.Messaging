@@ -50,4 +50,6 @@ builder.Services.AddOpenTelemetry()
 Then scrape `http://localhost:9464/metrics` and apply queries from:
 
 - `docs/observability/dlq-dashboard.md`
+- `docs/observability/autoscaling-signals.md` (scale workers from retry/DLQ pressure)
+- `docs/deploy/kubernetes/` (KEDA and HPA reference manifests)
 

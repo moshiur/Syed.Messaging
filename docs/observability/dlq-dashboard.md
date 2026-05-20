@@ -120,6 +120,13 @@ sum(rate(messaging_messages_deadlettered_total[1m])) > 5
 - Keep `reason` constrained to the approved taxonomy.
 - Add custom tags only if they are bounded and operationally actionable.
 
+## Autoscaling
+
+Use retry and DLQ signals to scale worker replicas safely (block scale-up during poison or high retry→DLQ conversion):
+
+- [autoscaling-signals.md](./autoscaling-signals.md) — thresholds, cooldowns, decision flow
+- [Kubernetes references](../deploy/kubernetes/README.md) — KEDA `ScaledObject` and HPA + prometheus-adapter starters
+
 ## Sample usage
 
 - Local sample guidance: `samples/KafkaWorker/README.md`
