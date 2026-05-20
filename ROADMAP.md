@@ -160,6 +160,7 @@ Increase operational robustness.
 ### Next Concrete Issue
 
 - Expand Aspire component for messaging dashboard integration (metrics, health, DLQ visibility).
+- Execution plan (issue-ready tasks): `docs/execution-plan-phase5-remaining.md`
 
 ---
 
