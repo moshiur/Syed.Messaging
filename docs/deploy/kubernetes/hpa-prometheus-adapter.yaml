@@ -1,0 +1,63 @@
+# Reference: HPA driven by a Prometheus external metric via prometheus-adapter.
+# Merge the adapter rule into your existing adapter ConfigMap; do not replace cluster config blindly.
+#
+# Docs: docs/observability/autoscaling-signals.md
+# Install: https://github.com/kubernetes-sigs/prometheus-adapter
+---
+# Fragment for prometheus-adapter config (under config.rules in the adapter ConfigMap):
+# ---
+# - seriesQuery: 'messaging_messages_retried_total'
+#   resources:
+#     overrides:
+#       namespace: { resource: "namespace" }
+#       pod: { resource: "pod" }
+#   name:
+#     matches: "^(.*)_total$"
+#     as: "messaging_pressure_score"
+#   metricsQuery: |
+#     (
+#       10 * sum(rate(messaging_messages_deadlettered_total{<<.LabelMatchers>>}[5m]))
+#       + sum(rate(messaging_messages_retried_total{<<.LabelMatchers>>}[5m]))
+#     )
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: messaging-worker
+  namespace: default
+  labels:
+    app.kubernetes.io/name: messaging-worker
+    app.kubernetes.io/component: autoscaling
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: messaging-worker
+  minReplicas: 2
+  maxReplicas: 12
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 120
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 120
+  metrics:
+    - type: External
+      external:
+        metric:
+          name: messaging_pressure_score
+          selector:
+            matchLabels:
+              # Optional: scope to a namespace label if your adapter rule exposes it.
+              namespace: default
+        target:
+          type: AverageValue
+          # Calibrate: baseline composite from autoscaling-signals worked example (~15).
+          averageValue: "15"

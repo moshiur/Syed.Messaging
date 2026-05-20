@@ -153,13 +153,13 @@ Increase operational robustness.
 - ✅ Kafka partition dispatcher tests (ordering, parallelism, revoke behavior)
 - ✅ Kafka sample + docs for partition-key strategy and scaling behavior
 - ✅ Error queues with metrics dashboards (standard DLQ tags + Prometheus dashboard/alerts guide)
-- Message throughput autoscaling helpers
+- ✅ Message throughput autoscaling helpers (retry/DLQ pressure signals + KEDA/HPA reference manifests)
 - Aspire component for messaging (dashboard integration)
-- Deployment recipes for Kubernetes
+- Deployment recipes for Kubernetes (broader than autoscaling references)
 
 ### Next Concrete Issue
 
-- Add autoscaling helper guidance and reference implementation based on retry and DLQ pressure thresholds.
+- Expand Aspire component for messaging dashboard integration (metrics, health, DLQ visibility).
 
 ---
 
