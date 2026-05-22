@@ -1,0 +1,84 @@
+# Syed.Messaging — local broker stack for samples + tests
+#
+#   docker compose up -d         # start everything
+#   docker compose ps            # check health
+#   docker compose down -v       # stop and wipe data
+#
+# ============================================================================
+# SECURITY: loopback-only, unauthenticated, dev-only.
+# ============================================================================
+# Every host port mapping below is bound to 127.0.0.1 deliberately. RabbitMQ
+# runs as the default `guest:guest`; Kafka has no SASL, no TLS, and auto-creates
+# topics. This stack is safe to run on a laptop on any network because nothing
+# on the LAN can reach the broker ports. Do not change these bindings to
+# 0.0.0.0 unless you also add authentication + TLS.
+#
+# No named volumes — every `docker compose down` (or `restart`) wipes broker
+# state. Fine for samples and tests; if you need persistence between runs,
+# add volumes for /var/lib/rabbitmq, /var/lib/kafka/data, /var/lib/zookeeper.
+#
+# Brokers reachable from the host (only):
+#   RabbitMQ  amqp://guest:guest@localhost:5672/   (management UI: http://localhost:15672)
+#   Kafka     localhost:9092                       (PLAINTEXT)
+#
+# Azure Service Bus has no free local emulator. ServiceBusWorker requires a
+# real Azure namespace — see samples/ServiceBusWorker/README.md.
+#
+# Sibling-container note (not the documented Quick Start use case): KAFKA_ADVERTISED_LISTENERS
+# below advertises "localhost:9092", which works for host-side clients but
+# breaks any sibling container that wants to reach Kafka via "kafka:9092" on
+# the compose network. If you add a worker container, add a second listener
+# (e.g., PLAINTEXT_INTERNAL://0.0.0.0:29092 advertised as kafka:29092).
+
+services:
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: syed-messaging-rabbitmq
+    ports:
+      - "127.0.0.1:5672:5672"     # AMQP — loopback only
+      - "127.0.0.1:15672:15672"   # Management UI — loopback only
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.1
+    container_name: syed-messaging-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: syed-messaging-kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:9092:9092"     # PLAINTEXT broker — loopback only
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      # Laptop-friendly JVM sizing — Confluent's default ~1GB heap can OOM-kill
+      # on Docker Desktop's default memory cap.
+      KAFKA_HEAP_OPTS: "-Xmx512M -Xms256M"
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
