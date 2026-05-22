@@ -8,3 +8,5 @@ obj/
 
 nupkgs/
 
+# Claude Code per-user state (settings.local.json, etc.)
+.claude/

@@ -67,8 +67,39 @@ public sealed class RabbitMqTransport : IMessageTransport, IDisposable
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "[Critical] Failed to initialize RabbitMqTransport. ConnectionStr: {ConnectionString}", options.ConnectionString);
+            logger.LogError(
+                ex,
+                "[Critical] Failed to initialize RabbitMqTransport. ConnectionStr: {ConnectionString}",
+                RedactConnectionString(options.ConnectionString));
             throw;
+        }
+    }
+
+    /// <summary>
+    /// Returns a copy of the connection string with userinfo (user:password)
+    /// stripped, suitable for log lines. Falls back to a placeholder if the
+    /// input is not a parseable URI.
+    /// </summary>
+    internal static string RedactConnectionString(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return "<unset>";
+        }
+
+        try
+        {
+            var builder = new UriBuilder(raw)
+            {
+                UserName = string.Empty,
+                Password = string.Empty
+            };
+            return builder.Uri.ToString();
+        }
+        catch
+        {
+            // Not a parseable URI — don't risk leaking embedded creds in the fallback path.
+            return "<unparseable>";
         }
     }
 

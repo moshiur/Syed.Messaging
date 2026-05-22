@@ -14,12 +14,12 @@ real-world developer experience, operational resilience, or architectural clarit
 | Abstractions             | ✅ Stable   | Good conceptual clarity; low churn expected                      |
 | RabbitMQ Transport       | ✅ Stable   | Publisher confirms, retry, DLQ, RPC support                      |
 | Kafka Transport          | ✅ Improved | Partition-aware dispatch, rebalance safety, sample + tests added |
-| Azure Service Bus        | ⚠️ Minimal | Needs scheduling/backoff + full config                           |
+| Azure Service Bus        | ✅ Stable   | Scheduled retry via `ScheduledEnqueueTime`, session support, structured logging, metrics |
 | Outbox (EF Core)         | ✅ Stable   | Type registry + envelope + raw mode + multi-tenancy              |
 | Inbox (EF Core)          | ✅ Complete | Idempotent consumer pattern                                      |
 | Versioning Helpers       | ✅ Stable   | `VersionedMessage<T>` + upgrade helpers                          |
 | Message Type Registry    | ✅ Complete | Safe type resolution with versioning                             |
-| Schema Registry          | ✅ Complete | Abstraction with validation + compatibility                      |
+| Schema Registry          | 🟡 In Progress | Abstraction shipped (`ISchemaRegistry`); compat + validation work tracked in [docs/task.md](docs/task.md) Milestone O |
 | Distributed Tracing      | ✅ Complete | OpenTelemetry package with activity spans                        |
 | Metrics                  | ✅ Complete | 7 instruments via System.Diagnostics.Metrics                     |
 | Saga Primitives          | ✅ Stable   | Correlation, timeouts, state management                          |
