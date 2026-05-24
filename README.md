@@ -5,7 +5,7 @@
 [![Build & Test](https://github.com/moshiur/Syed.Messaging/actions/workflows/publish.yml/badge.svg)](https://github.com/moshiur/Syed.Messaging/actions/workflows/publish.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![.NET](https://img.shields.io/badge/.NET-10.0-purple.svg)
-![Version](https://img.shields.io/badge/version-1.2.0-green.svg)
+![Version](https://img.shields.io/badge/version-1.2.2-green.svg)
 
 ---
 
@@ -99,8 +99,8 @@ Block scale-up when conversion ratio spikes (broken pipeline). Scale on retry pr
 The publish workflow ([.github/workflows/publish.yml](.github/workflows/publish.yml)) pushes packages to **NuGet.org** (when the `NUGET_API_KEY` secret is set on the release) and **GitHub Packages** (always). For most users, NuGet.org is the easier path:
 
 ```bash
-dotnet add package Syed.Messaging.Core --version 1.2.0
-dotnet add package Syed.Messaging.RabbitMq --version 1.2.0
+dotnet add package Syed.Messaging.Core --version 1.2.2
+dotnet add package Syed.Messaging.RabbitMq --version 1.2.2
 ```
 
 > If a specific version isn't on NuGet.org yet, it's available on [GitHub Packages](https://github.com/moshiur/Syed.Messaging/packages). Add that feed with a personal access token scoped to `read:packages`:
@@ -399,6 +399,20 @@ dotnet test Syed.Messaging.sln -c Release
 ---
 
 ## 📋 Changelog
+
+### v1.2.2 — Docs accuracy + security hardening
+- Soften README hero; drop adversarial framing
+- Fix saga code example (real `ISagaHandler<TState, TMsg>.HandleAsync` shape, sending via `IMessageBus`, timeouts via `ISagaTimeoutScheduler`)
+- Fix outbox code example (`Id`, `CreatedAtUtc`, correct EF Core single-transaction commit shape, stable wire-key for `MessageType`)
+- Replace fabricated metric names with the real 7 counters + processing-duration histogram on the `Syed.Messaging` meter
+- `RabbitMqTransport`: redact `user:password` from connection-failure log lines (new `RedactConnectionString` helper)
+- `docker-compose.yml`: bind every host port to `127.0.0.1`, set `KAFKA_HEAP_OPTS` for laptop-friendly memory
+- Migration guide: fix MassTransit v8 (Apache 2.0) vs v9 (commercial via Massient) framing; new "Credentials, secrets, and production hardening" section
+- New: `LICENSE` (MIT), `CLAUDE.md`, `docker-compose.yml`, `docs/migrating-from-masstransit.md`, `samples/ServiceBusWorker/README.md`
+- CI: fix `secrets.*` in step-level `if:` expression (workflow was failing in 0s on every trigger before this release)
+
+### v1.2.1 — manual publish
+- No CI release. Bits identical to v1.2.0; pushed directly via `dotnet nuget push` while the publish workflow was broken (fixed in v1.2.2).
 
 ### v1.2.0 — Per-Destination Queue Routing
 - `SubscribeAsync` auto-declares per-destination queues bound by routing key
