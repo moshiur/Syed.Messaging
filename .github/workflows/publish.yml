@@ -107,6 +107,13 @@ jobs:
       - name: Push to GitHub Packages
         run: dotnet nuget push ./nupkgs/*.nupkg --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" --api-key ${{ secrets.GITHUB_TOKEN }} --skip-duplicate
 
+      # Reading the secret into env: first is required — GitHub Actions does
+      # not allow `secrets.*` directly inside step-level `if:` expressions,
+      # which fails workflow file validation (every trigger fails in 0s).
+      # The env-var indirection both fixes the validation error and keeps
+      # the key out of the constructed command line in logs.
       - name: Push to NuGet.org
-        if: ${{ secrets.NUGET_API_KEY != '' }}
-        run: dotnet nuget push ./nupkgs/*.nupkg --source "https://api.nuget.org/v3/index.json" --api-key ${{ secrets.NUGET_API_KEY }} --skip-duplicate
+        env:
+          NUGET_KEY: ${{ secrets.NUGET_API_KEY }}
+        if: env.NUGET_KEY != ''
+        run: dotnet nuget push ./nupkgs/*.nupkg --source "https://api.nuget.org/v3/index.json" --api-key "$NUGET_KEY" --skip-duplicate
