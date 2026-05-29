@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>Syed.Messaging.Chaos</AssemblyName>
+    <RootNamespace>Syed.Messaging.Chaos</RootNamespace>
+    <Description>Chaos-engineering middleware for Syed.Messaging. Injects realistic failure shapes (drop, delay, duplicate, ack-timeout, header corruption) into consumed messages so distributed-systems bugs surface in dev/staging, not production. Off by default; opt in via EnableChaos() + SYED_CHAOS_LEVEL; refused in production unless explicitly allowed.</Description>
+    <PackageId>Syed.Messaging.Chaos</PackageId>
+    <PackageTags>messaging;chaos;chaos-engineering;fault-injection;testing;resilience;dotnet</PackageTags>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Syed.Messaging.Chaos.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Syed.Messaging.Abstractions\Syed.Messaging.Abstractions.csproj" />
+    <ProjectReference Include="..\Syed.Messaging.Core\Syed.Messaging.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.8" />
+  </ItemGroup>
+</Project>
