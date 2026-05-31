@@ -33,6 +33,7 @@ real-world developer experience, operational resilience, or architectural clarit
 | Service Discovery        | ✅ Complete | Kubernetes DNS, Consul, standard DNS                             |
 | Resilience (Polly)       | ✅ Complete | Configurable resilience pipelines                                |
 | Aspire Integration       | ✅ Simple   | Expand with components                                           |
+| Chaos Engineering        | ✅ New      | `Syed.Messaging.Chaos` — 5 failure shapes, env-gated, prod-safe (v1.3.0) |
 
 
 ---

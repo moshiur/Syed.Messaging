@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-**Syed.Messaging** — a transport-agnostic .NET 10 messaging framework distributed as ~15 NuGet packages (Abstractions, Core, RabbitMq, Kafka, AzureServiceBus, Outbox.EfCore, Inbox.EfCore, Sagas + Sagas.EfCore + Sagas.Redis, OpenTelemetry, HealthChecks, SignalR, Aspire, BuildingBlocks). One API across RabbitMQ / Kafka / Azure Service Bus with production patterns (retry, DLQ, outbox/inbox, sagas, OTel) built in.
+**Syed.Messaging** — a transport-agnostic .NET 10 messaging framework distributed as ~16 NuGet packages (Abstractions, Core, RabbitMq, Kafka, AzureServiceBus, Outbox.EfCore, Inbox.EfCore, Sagas + Sagas.EfCore + Sagas.Redis, OpenTelemetry, HealthChecks, Chaos, SignalR, Aspire, BuildingBlocks). One API across RabbitMQ / Kafka / Azure Service Bus with production patterns (retry, DLQ, outbox/inbox, sagas, OTel, chaos) built in.
 
 The full solution is `Syed.Messaging.sln` at the repo root. Shared MSBuild config lives in `Directory.Build.props` (TFM, package metadata, source-link, snupkg symbols). Library projects are non-packable by default — they opt in by setting `<IsPackable>true</IsPackable>`.
 
