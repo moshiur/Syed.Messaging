@@ -12,6 +12,10 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Syed.Messaging.Chaos.Tests" />
+    <!-- ChaosDemo constructs ChaosMiddleware directly for a broker-free,
+         zero-setup demonstration. Internal access keeps the demo honest
+         (real middleware, real log lines) without a transport dependency. -->
+    <InternalsVisibleTo Include="ChaosDemo" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Syed.Messaging.Abstractions\Syed.Messaging.Abstractions.csproj" />
