@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-**Syed.Messaging** — a transport-agnostic .NET 10 messaging framework distributed as ~15 NuGet packages (Abstractions, Core, RabbitMq, Kafka, AzureServiceBus, Outbox.EfCore, Inbox.EfCore, Sagas + Sagas.EfCore + Sagas.Redis, OpenTelemetry, HealthChecks, SignalR, Aspire, BuildingBlocks). One API across RabbitMQ / Kafka / Azure Service Bus with production patterns (retry, DLQ, outbox/inbox, sagas, OTel) built in.
+**Syed.Messaging** — a transport-agnostic .NET 10 messaging framework distributed as ~16 NuGet packages (Abstractions, Core, RabbitMq, Kafka, AzureServiceBus, Outbox.EfCore, Inbox.EfCore, Sagas + Sagas.EfCore + Sagas.Redis, OpenTelemetry, HealthChecks, Chaos, SignalR, Aspire, BuildingBlocks). One API across RabbitMQ / Kafka / Azure Service Bus with production patterns (retry, DLQ, outbox/inbox, sagas, OTel, chaos) built in.
 
 The full solution is `Syed.Messaging.sln` at the repo root. Shared MSBuild config lives in `Directory.Build.props` (TFM, package metadata, source-link, snupkg symbols). Library projects are non-packable by default — they opt in by setting `<IsPackable>true</IsPackable>`.
 
@@ -93,6 +93,10 @@ When adding a new message type, prefer the attribute. When deserializing in a ne
 - **RabbitMQ** — Direct exchange + **per-destination queues** (v1.2.0). Each `AddConsumer<T>` declares its own queue bound by routing key. Retry queue has TTL + DLX back to the main exchange, preserving the original routing key so retried messages land in the same consumer queue. DLQ adds `x-poison-*` diagnostic headers. Publisher confirms enabled via `ConfirmSelect` + `WaitForConfirmsOrDie`.
 - **Kafka** — Ordering is per-partition. Producers should set the `partition-key` header (aggregate id) so related events land on the same partition. `KafkaOptions.Consumer.MaxConcurrentPartitions` and `PartitionAssignmentStrategy=CooperativeSticky` give per-entity ordering with cross-entity parallelism. Delayed retry is implemented as retry topics per delay (e.g. `retry-30s`, `retry-60s`, `retry-300s`).
 - **Azure Service Bus** — Delayed retry uses `ScheduledEnqueueTime` on a republished message (not a separate retry queue). Sessions are propagated via the `session-id` header for session-aware sagas.
+
+### Chaos engineering (v1.3.0)
+
+`Syed.Messaging.Chaos` adds an opt-in `IMessageMiddleware` (`ChaosMiddleware`) via `MessagingBuilder.EnableChaos()`. It injects 5 failure shapes (Drop, Duplicate, Delay, HeaderCorruption-additive, AckTimeout) gated by `SYED_CHAOS_LEVEL` (Off/Low/Medium/High; env overrides code). **Key constraints discovered during design** (see the plan's eng review): `IMessageMiddleware.InvokeAsync`'s `next` is `Func<Task>` (parameterless) and `MessageEnvelope.Body` is `init`, so a middleware cannot forward a *modified* envelope downstream — that's why PartialBody/OutOfOrder/PartitionRebalance were dropped from the original 8-shape spec and HeaderCorruption is additive-only. `Duplicate` auto-skips when `IInboxStore` is registered (the inbox check in `GenericMessageConsumer` runs before the middleware pipeline; double-invoke would double-run handler logic before the inbox mark). Chaos uses a **separate** `Syed.Messaging.Chaos` meter (`messaging.chaos.injected`), never the core `messaging.messages.failed`, so it can't pollute SRE dashboards. Production refused unless `SYED_CHAOS_PROD=true` / `ProductionAllowed`. Injector is thread-safe (`ThreadLocal<Random>`, deterministic per-thread sub-seeds).
 
 ### Sagas
 

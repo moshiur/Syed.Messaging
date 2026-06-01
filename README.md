@@ -59,6 +59,7 @@ Block scale-up when conversion ratio spikes (broken pipeline). Scale on retry pr
 | **Transport-agnostic** | RabbitMQ, Kafka, Azure Service Bus — same API |
 | **Typed consumers** | `IMessageHandler<T>` with automatic deserialization |
 | **Middleware pipeline** | `IMessageMiddleware` for cross-cutting concerns *(v1.1.0)* |
+| **Chaos engineering** | Inject realistic failures (drop, duplicate, delay, ack-timeout) in dev — on by default, refused in prod *(v1.3.0)* |
 | **Retry + DLQ** | Configurable retry policies with exponential backoff and dead-letter routing |
 | **Outbox pattern** | EF Core-based transactional outbox with raw mode support |
 | **Inbox deduplication** | Idempotent consumer pattern via EF Core |
@@ -90,6 +91,7 @@ Block scale-up when conversion ratio spikes (broken pipeline). Scale on retry pr
 | `Syed.Messaging.Sagas.Redis` | Redis distributed saga locking |
 | `Syed.Messaging.OpenTelemetry` | Activity spans for publish/consume and trace context propagation |
 | `Syed.Messaging.HealthChecks` | ASP.NET Core health check integration |
+| `Syed.Messaging.Chaos` | Chaos-engineering middleware — inject failures in dev, refused in prod *(v1.3.0)* |
 | `Syed.Messaging.SignalR` | Bridge messaging events to SignalR hubs |
 | `Syed.Messaging.Aspire` | .NET Aspire integration helpers |
 | `Syed.BuildingBlocks` | Shared utilities and feature flags |
@@ -225,6 +227,34 @@ services.AddMessaging(m => m.AddMiddleware<TenantContextMiddleware>());
 ```
 
 Middlewares execute in registration order (first registered = outermost wrapper).
+
+---
+
+## 🌪 Chaos Engineering *(v1.3.0)*
+
+Your handlers only see the happy path in dev — that's why production incidents surprise you. `Syed.Messaging.Chaos` injects realistic failures into consumed messages so the bugs surface where they're cheap to fix.
+
+```csharp
+services.AddMessaging(m =>
+{
+    m.UseRabbitMq(o => o.ConnectionString = "amqp://localhost");
+    m.AddConsumer<OrderCreated, OrderCreatedHandler>(c => c.Destination = "orders.created");
+    m.EnableChaos();   // off until SYED_CHAOS_LEVEL is set; refused in Production by default
+});
+```
+
+```bash
+SYED_CHAOS_LEVEL=medium dotnet run
+```
+
+```
+warn: [CHAOS:duplicate] Invoking the handler for orders.created TWICE to test idempotency.
+      If your handler isn't safe to call twice, that's a real bug production will eventually hit.
+```
+
+Five shapes ship in v1.3.0: **Drop**, **Duplicate**, **Delay**, **HeaderCorruption** (additive), **AckTimeout**. `Duplicate` auto-skips when an `IInboxStore` is registered. Chaos refuses to run in `Production` unless you explicitly opt in (`SYED_CHAOS_PROD=true`), and emits a separate `Syed.Messaging.Chaos` meter so it never pollutes your SRE dashboards.
+
+See it broker-free in ~5 seconds: [`samples/ChaosDemo`](samples/ChaosDemo). Full shape-safety matrix + config reference: [`src/Syed.Messaging.Chaos`](src/Syed.Messaging.Chaos).
 
 ---
 
@@ -399,6 +429,16 @@ dotnet test Syed.Messaging.sln -c Release
 ---
 
 ## 📋 Changelog
+
+### v1.3.0 — Chaos Engineering
+- New `Syed.Messaging.Chaos` package: `EnableChaos()` adds chaos middleware to the consumer pipeline
+- Five failure shapes: `Drop`, `Duplicate`, `Delay`, `HeaderCorruption` (additive), `AckTimeout`
+- `SYED_CHAOS_LEVEL` env var (Off/Low/Medium/High) overrides code config; default `Off`
+- Production-safety gate: chaos refused when `ASPNETCORE_ENVIRONMENT=Production` unless `SYED_CHAOS_PROD=true` or `ProductionAllowed`
+- `Duplicate` auto-skips when an `IInboxStore` is registered (avoids unsafe double-invocation)
+- Dedicated `Syed.Messaging.Chaos` meter (`messaging.chaos.injected`) — never touches the core `messaging.messages.failed` counter
+- Thread-safe, optionally-seeded injector for reproducible chaos in tests
+- Broker-free [`samples/ChaosDemo`](samples/ChaosDemo) + 32 unit tests
 
 ### v1.2.2 — Docs accuracy + security hardening
 - Soften README hero; drop adversarial framing
